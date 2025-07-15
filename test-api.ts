@@ -1,7 +1,13 @@
 // Script de teste para a API do Chatbot
 // Execute: node test-api.js (com o servidor rodando)
 
-const { channel } = require("diagnostics_channel");
+interface TestMessage {
+    message: string;
+    channel: string;
+    userId?: string;
+    email?: string;
+    phone?: string;
+}
 
 const testChatbot = async () => {
     const baseUrl = 'http://localhost:3000';
@@ -25,7 +31,7 @@ const testChatbot = async () => {
     console.log('🤖 Testando mensagens do chatbot...');
 
     // ADICIONE SUAS PERGUNTAS DE TESTE AQUI
-    const testMessages = [
+    const testMessages: TestMessage[] = [
         // Perguntas básicas sobre dados pessoais
         /*    {
                message: "Qual é o meu nome?",
