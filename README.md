@@ -62,10 +62,12 @@ src/
    npm run start:prod
    ```
 
-## 📡 Endpoints da API
+## �� Endpoints da API
 
-### `POST /chat/message`
-Processa uma mensagem do usuário e retorna a resposta do chatbot.
+A API agora possui dois endpoints principais para lidar com os diferentes fluxos de conversa.
+
+### `POST /chat/open`
+Processa uma mensagem do usuário usando o fluxo de **chat aberto**, onde a IA do Google Gemini é usada para gerar respostas dinâmicas com base nos dados cadastrais do usuário.
 
 **Request:**
 ```json
@@ -79,8 +81,45 @@ Processa uma mensagem do usuário e retorna a resposta do chatbot.
 **Response:**
 ```json
 {
-  "response": "Seu nome cadastrado é João Silva",
+  "response": "Seu nome cadastrado é João Silva.",
   "success": true
+}
+```
+
+### `POST /chat/closed`
+Processa uma mensagem do usuário usando o fluxo de **chat fechado**, que segue uma máquina de estados pré-definida (o diagrama) para guiar o usuário através de um menu de opções.
+
+**Request (primeira mensagem):**
+```json
+{
+  "message": "",
+  "state": null,
+  "channel": "web"
+}
+```
+
+**Response (exemplo):**
+```json
+{
+  "response": "Olá! Para começar, por favor, me diga qual seu perfil:\n1 - Sou Estudante\n2 - Sou Professor\n3 - Ainda não sou usuário",
+  "success": true,
+  "nextState": {
+    "currentState": "AWAITING_USER_TYPE",
+    "data": {}
+  }
+}
+```
+
+**Request (mensagem subsequente):**
+O cliente **deve** enviar de volta o objeto `state` recebido na resposta anterior.
+```json
+{
+  "message": "1",
+  "state": {
+    "currentState": "AWAITING_USER_TYPE",
+    "data": {}
+  },
+  "channel": "web"
 }
 ```
 
@@ -97,11 +136,18 @@ Endpoint de health check.
 
 ## 🔄 Fluxo de Orquestração
 
-1. **Recebimento**: API recebe mensagem e identificador do usuário
-2. **Identificação**: Sistema identifica o usuário (por ID, telefone ou email)
-3. **Busca de Dados**: Consulta dados do usuário (simulado via MockUserRepository)
-4. **Processamento IA**: Combina mensagem + dados do usuário em prompt para Gemini
-5. **Resposta**: Retorna resposta personalizada da IA
+### Chat Aberto (`/chat/open`)
+1. **Recebimento**: API recebe mensagem e identificador do usuário.
+2. **Identificação**: Sistema identifica o usuário (por ID, telefone ou email).
+3. **Busca de Dados**: Consulta dados do usuário (simulado via `MockUserRepository`).
+4. **Processamento IA**: Combina mensagem + dados do usuário em um prompt para o Gemini.
+5. **Resposta**: Retorna a resposta personalizada gerada pela IA.
+
+### Chat Fechado (`/chat/closed`)
+1. **Recebimento**: API recebe a mensagem do usuário e o **estado atual** da conversa.
+2. **Máquina de Estados**: O `ClosedChatFlow` processa a mensagem com base no estado atual.
+3. **Execução da Lógica**: Dependendo do estado, o sistema pode consultar APIs (como a de estudantes), fazer uma pergunta, ou apresentar um menu.
+4. **Próximo Estado**: A API retorna a resposta para o usuário e o **próximo estado** da conversa, que deve ser armazenado pelo cliente.
 
 ## 🧪 Dados de Teste
 
@@ -121,21 +167,30 @@ O sistema inclui usuários mock para teste:
 
 ## 🔗 Integração com Projeto Y
 
-Atualmente, o sistema usa um repositório mock (`MockUserRepository`) que simula a API do Projeto Y. Para integrar com a API real:
+Atualmente, o sistema usa um repositório mock (`MockUserRepository` e `MockStudentRepository`) que simula a API do Projeto Y. Para integrar com a API real:
 
-1. Implemente `UserRepository` em `infrastructure/repositories/`
+1. Implemente `UserRepository` e `StudentRepository` em `infrastructure/repositories/`
 2. Configure as variáveis de ambiente `PROJECT_Y_API_URL` e `PROJECT_Y_API_KEY`
 3. Atualize o provider no `AppModule`
 
 ## 📝 Exemplo de Uso
 
 ```bash
-# Teste com cURL
-curl -X POST http://localhost:3000/chat/message \
+# Teste do Chat Aberto com cURL
+curl -X POST http://localhost:3000/chat/open \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Qual é o meu endereço?",
     "userId": "1",
+    "channel": "web"
+  }'
+
+# Teste do Chat Fechado com cURL (iniciando a conversa)
+curl -X POST http://localhost:3000/chat/closed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "",
+    "state": null,
     "channel": "web"
   }'
 ```

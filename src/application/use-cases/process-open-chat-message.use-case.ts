@@ -4,7 +4,7 @@ import { AIService } from '../../domain/services/ai.service';
 import { ChatMessage } from '../../domain/entities/chat-message.entity';
 import { User } from '../../domain/entities/user.entity';
 
-export interface ProcessChatMessageRequest {
+export interface ProcessOpenChatMessageRequest {
   message: string;
   userId?: string;
   phone?: string;
@@ -12,20 +12,20 @@ export interface ProcessChatMessageRequest {
   channel: 'web' | 'whatsapp' | 'telegram';
 }
 
-export interface ProcessChatMessageResponse {
+export interface ProcessOpenChatMessageResponse {
   response: string;
   success: boolean;
   error?: string;
 }
 
 @Injectable()
-export class ProcessChatMessageUseCase {
+export class ProcessOpenChatMessageUseCase {
   constructor(
     @Inject('UserRepository') private readonly userRepository: UserRepository,
     @Inject('AIService') private readonly aiService: AIService,
   ) {}
 
-  async execute(request: ProcessChatMessageRequest): Promise<ProcessChatMessageResponse> {
+  async execute(request: ProcessOpenChatMessageRequest): Promise<ProcessOpenChatMessageResponse> {
     try {
       // 1. Identificar o usuário
       let user: User | null = null;
