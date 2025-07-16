@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as readline from 'readline';
 
-const API_URL = 'http://localhost:3000/chat/open';
+// const API_URL = 'http://localhost:3000/chat/open';
+const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/open';
 
 const rl = readline.createInterface({
   input: process.stdin,
