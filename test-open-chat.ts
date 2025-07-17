@@ -1,8 +1,8 @@
 import axios from 'axios';
 import * as readline from 'readline';
 
-// const API_URL = 'http://localhost:3000/chat/open';
-const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/open';
+const API_URL = 'http://localhost:3000/chat/open';
+// const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/open';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -16,7 +16,7 @@ function askQuestion(query: string): Promise<string> {
 async function startChat() {
   console.log('--- Iniciando teste do Chat Aberto (IA) ---');
   
-  const userId = await askQuestion('Qual ID de usuário você quer simular? (ex: 1 para João, 2 para Maria): ');
+  const userId = await askQuestion('Qual ID de usuário você quer simular? (1: João Coordenador, 2: Maria, 3: Carlos, 4: Ana, 5: Lucas): ');
   if (!userId) {
     console.log('ID de usuário inválido. Encerrando.');
     rl.close();

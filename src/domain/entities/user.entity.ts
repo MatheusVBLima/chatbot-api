@@ -1,4 +1,10 @@
-export interface User {
+export interface Subject {
+  name: string;
+  averageGrade: number; // Média da nota
+  absences: number;     // Número de faltas
+}
+
+export class User {
   id: string;
   name: string;
   email: string;
@@ -14,4 +20,11 @@ export interface User {
   };
   createdAt: Date;
   updatedAt: Date;
+
+  // New Fields
+  role: 'student' | 'coordinator';
+  university?: string;
+  course?: string;
+  period?: number;
+  subjects?: Subject[];
 } 

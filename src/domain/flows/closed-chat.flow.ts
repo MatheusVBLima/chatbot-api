@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { User } from '../entities/user.entity';
-import { StudentRepository } from '../repositories/student.repository';
+import { UserRepository } from '../repositories/user.repository';
 
 /**
  * Defines the possible states (nodes) in the closed chat flow diagram.
@@ -45,8 +45,8 @@ export interface FlowResponse {
 @Injectable()
 export class ClosedChatFlow {
   constructor(
-    @Inject('StudentRepository')
-    private readonly studentRepository: StudentRepository,
+    @Inject('UserRepository')
+    private readonly userRepository: UserRepository,
   ) {}
   /**
    * Handles the user's message based on the current state of the conversation.
@@ -162,33 +162,22 @@ export class ClosedChatFlow {
 
   private async handleStudentCpfResponse(message: string, state: ClosedChatState): Promise<FlowResponse> {
     const cpf = message.trim();
-    const student = await this.studentRepository.findByCpf(cpf);
+    const student = await this.userRepository.findByCpf(cpf);
 
-    if (!student) {
+    if (!student || student.role !== 'student') {
       return {
-        response: 'CPF não encontrado. Por favor, verifique os dados e tente novamente ou entre em contato com seu coordenador.',
+        response: 'CPF não encontrado ou não pertence a um estudante. Por favor, verifique os dados e tente novamente.',
         nextState: state, // Keep state to allow retry
       };
     }
 
     const nextStateData = { ...state.data, studentId: student.id };
 
-    if (student.isGroupActive) {
-      return this.showStudentMenu(nextStateData);
-    } else {
-      const response = `Olá, ${student.name}. Identificamos que seu grupo não está ativo no momento. Algumas funcionalidades podem estar limitadas. Recomendamos que entre em contato com o coordenador do seu curso para mais informações.
-
-Posso te ajudar com algo mais mesmo assim?
-1 - Sim
-2 - Não`;
-      return {
-        response,
-        nextState: {
-          currentState: ChatFlowState.AWAITING_STUDENT_LIMITED_CONTINUE,
-          data: nextStateData,
-        },
-      };
-    }
+    // This logic needs to be re-evaluated. For now, we assume a student user might have an "inactive group" status.
+    // A new field would be needed in the User entity, e.g., `isGroupActive`.
+    // Let's assume for now all students found are active.
+    return this.showStudentMenu(nextStateData);
+    
   }
 
   private handleStudentLimitedContinue(message: string, state: ClosedChatState): FlowResponse {

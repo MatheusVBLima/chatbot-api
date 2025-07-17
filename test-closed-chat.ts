@@ -2,8 +2,8 @@ import axios from 'axios';
 import * as readline from 'readline';
 
 // The URL of your running NestJS API
-// const API_URL = 'http://localhost:3000/chat/closed';
-const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/closed';
+const API_URL = 'http://localhost:3000/chat/closed';
+// const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/closed';
 
 // Interface to match the structure of the API's state object
 interface ChatState {
@@ -28,7 +28,8 @@ function askQuestion(query: string): Promise<string> {
  * The main loop for the interactive test chat.
  */
 async function startChat() {
-  console.log('--- Iniciando teste do Chat Fechado ---');
+  console.log('--- Iniciando teste do Chat Fechado (Fluxo de Menu) ---');
+  console.log('Pressione Enter para iniciar e depois siga as opções do menu.');
   console.log('Digite "sair" a qualquer momento para terminar.');
   
   let currentState: ChatState | null = null;
