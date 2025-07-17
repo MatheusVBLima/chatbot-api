@@ -1,4 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UserRepository } from '../../domain/repositories/user.repository';
 import { AIService } from '../../domain/services/ai.service';
 import { User } from '../../domain/entities/user.entity';
@@ -19,10 +20,15 @@ export interface ProcessOpenChatMessageResponse {
 
 @Injectable()
 export class ProcessOpenChatMessageUseCase {
+  private apiBaseUrl: string;
+
   constructor(
     @Inject('UserRepository') private readonly userRepository: UserRepository,
     @Inject('AIService') private readonly aiService: AIService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.apiBaseUrl = this.configService.get<string>('API_BASE_URL', 'http://localhost:3000');
+  }
 
   async execute(request: ProcessOpenChatMessageRequest): Promise<ProcessOpenChatMessageResponse> {
     try {
@@ -99,9 +105,9 @@ export class ProcessOpenChatMessageUseCase {
             }
 
             let responseText = `Claro! Preparei o relatório consolidado para ${targetsForReport.length} usuários. Escolha o formato para download:\n`;
-            responseText += `\n- [Baixar em PDF](http://localhost:3000/reports/consolidated/pdf?${queryParams.toString()})\n`;
-            responseText += `- [Baixar em CSV (para Excel)](http://localhost:3000/reports/consolidated/csv?${queryParams.toString()})\n`;
-            responseText += `- [Ver como Texto Simples](http://localhost:3000/reports/consolidated/txt?${queryParams.toString()})\n`;
+            responseText += `\n- [Baixar em PDF](${this.apiBaseUrl}/reports/consolidated/pdf?${queryParams.toString()})\n`;
+            responseText += `- [Baixar em CSV (para Excel)](${this.apiBaseUrl}/reports/consolidated/csv?${queryParams.toString()})\n`;
+            responseText += `- [Ver como Texto Simples](${this.apiBaseUrl}/reports/consolidated/txt?${queryParams.toString()})\n`;
 
             return { response: responseText, success: true };
 
@@ -121,9 +127,9 @@ export class ProcessOpenChatMessageUseCase {
             const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
             let responseText = `Claro! Preparei o relatório acadêmico de ${target.name}. Escolha o formato para download:\n`;
-            responseText += `  - [Baixar em PDF](http://localhost:3000/reports/${target.id}/pdf${queryString})\n`;
-            responseText += `  - [Baixar em CSV (para Excel)](http://localhost:3000/reports/${target.id}/csv${queryString})\n`;
-            responseText += `  - [Ver como Texto Simples](http://localhost:3000/reports/${target.id}/txt${queryString})\n`;
+            responseText += `  - [Baixar em PDF](${this.apiBaseUrl}/reports/${target.id}/pdf${queryString})\n`;
+            responseText += `  - [Baixar em CSV (para Excel)](${this.apiBaseUrl}/reports/${target.id}/csv${queryString})\n`;
+            responseText += `  - [Ver como Texto Simples](${this.apiBaseUrl}/reports/${target.id}/txt${queryString})\n`;
             return { response: responseText, success: true };
         }
       }

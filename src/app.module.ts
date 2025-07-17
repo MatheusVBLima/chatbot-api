@@ -18,6 +18,7 @@ const AI_SERVICE = 'AIService';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
     }),
   ],
   controllers: [AppController, ChatController, ReportController],
