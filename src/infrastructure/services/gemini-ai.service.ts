@@ -22,7 +22,9 @@ export class GeminiAIService implements AIService {
     ) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.configService.get<string>('GOOGLE_GENERATIVE_AI_API_KEY');
     this.model = google('gemini-1.5-flash-latest');
-    this.apiBaseUrl = this.configService.get<string>('API_BASE_URL', 'http://localhost:3001');
+    const configuredBaseUrl = this.configService.get<string>('API_BASE_URL');
+    const renderExternalUrl = process.env.RENDER_EXTERNAL_URL;
+    this.apiBaseUrl = configuredBaseUrl || renderExternalUrl || 'http://localhost:3001';
   }
 
   // This method is deprecated and will be replaced by the tool-calling logic.
