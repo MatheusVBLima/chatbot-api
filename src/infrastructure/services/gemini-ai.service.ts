@@ -98,19 +98,29 @@ export class GeminiAIService implements AIService {
       trimmedMessages.push({ role: 'tool', content: toolResults });
 
       // We send the full conversation history back to the AI, including the tool results
-      const finalResult = await streamText({
-        model: this.model,
-        system: this.getToolCallSystemPrompt(actor),
-        messages: trimmedMessages,
-      });
-      
       let finalResponseText = '';
-      for await (const part of finalResult.fullStream) {
-        if (part.type === 'text-delta') {
-          finalResponseText += part.textDelta;
+      try {
+        const finalResult = await streamText({
+          model: this.model,
+          system: this.getToolCallSystemPrompt(actor),
+          messages: trimmedMessages,
+        });
+        for await (const part of finalResult.fullStream) {
+          if (part.type === 'text-delta') {
+            finalResponseText += part.textDelta;
+          } else if (part.type === 'error') {
+            console.error('Final stream error:', part.error);
+          }
         }
+      } catch (err) {
+        console.error('[AI] Error generating final response after tool results:', err);
       }
-      
+      // Fallback: if the model didn't produce any text, synthesize a concise human response from the tool results
+      if (!finalResponseText || finalResponseText.trim().length === 0) {
+        console.warn('[AI] Empty final response text after tool calls. Building fallback response.');
+        finalResponseText = this.buildFallbackResponseFromToolResults(toolResults);
+      }
+
       // Salvar conversa completa no cache (com ferramentas)
       const updatedMessages = [
         ...trimmedMessages,
@@ -129,6 +139,110 @@ export class GeminiAIService implements AIService {
     this.cacheService.set(conversationKey, updatedMessages, 3600000); // Cache por 1 hora (sessão)
     
     return textContent;
+  }
+
+  // Build a concise human-friendly response from tool results when the model doesn't emit text
+  private buildFallbackResponseFromToolResults(toolResults: Array<{ toolName: string; result: any }>): string {
+    try {
+      const lines: string[] = [];
+      for (const tr of toolResults) {
+        const name = tr.toolName;
+        const result = tr.result;
+        if (name === 'generateReport') {
+          if (result && typeof result === 'object' && result.downloadUrl) {
+            lines.push(`Relatório gerado. Link para download: ${result.downloadUrl}`);
+          } else if (result && result.error) {
+            lines.push(`Não foi possível gerar o relatório: ${result.error}`);
+          }
+          continue;
+        }
+
+        // Data-fetching tools
+        if (Array.isArray(result)) {
+          const count = result.length;
+          const preview = this.previewArray(result);
+          const label = this.labelForTool(name, count);
+          lines.push(`${label}: ${count} encontrado(s).${preview ? `\n${preview}` : ''}`);
+          continue;
+        }
+
+        if (result && typeof result === 'object') {
+          const formatted = this.previewObject(result);
+          const label = this.labelForTool(name, 1);
+          lines.push(`${label}:\n${formatted}`);
+          continue;
+        }
+
+        // Primitive or unknown
+        if (result != null) {
+          lines.push(String(result));
+        }
+      }
+
+      if (lines.length === 0) {
+        return 'Consegui obter os dados solicitados, mas não recebi um texto final da IA. Você pode pedir para eu gerar um relatório em PDF/CSV/TXT ou fazer outra pergunta.';
+      }
+
+      return lines.join('\n\n');
+    } catch (err) {
+      console.error('[AI] Error building fallback response:', err);
+      return 'Consegui executar as ferramentas, mas não recebi um texto final da IA. Tente repetir a pergunta ou pedir um relatório.';
+    }
+  }
+
+  private labelForTool(toolName: string, count: number): string {
+    switch (toolName) {
+      case 'getCoordinatorsOngoingActivities':
+        return 'Atividades em andamento';
+      case 'getCoordinatorsProfessionals':
+        return 'Profissionais supervisionados';
+      case 'getCoordinatorsStudents':
+        return 'Estudantes supervisionados';
+      case 'getCoordinatorDetails':
+        return 'Detalhes do coordenador';
+      case 'getStudentsScheduledActivities':
+        return 'Suas atividades agendadas';
+      case 'getStudentsProfessionals':
+        return 'Seus preceptores';
+      default:
+        return `Resultado (${toolName})`;
+    }
+  }
+
+  private previewArray(items: any[], maxItems: number = 3): string {
+    if (!items || items.length === 0) {
+      return '';
+    }
+    const subset = items.slice(0, maxItems);
+    const rendered = subset.map((item, idx) => `- ${this.previewObject(item)}`).join('\n');
+    const more = items.length > maxItems ? `\n... e mais ${items.length - maxItems}.` : '';
+    return `${rendered}${more}`;
+  }
+
+  private previewObject(obj: any): string {
+    if (!obj || typeof obj !== 'object') {
+      return String(obj);
+    }
+    // Try well-known shapes first
+    if (obj.studentName && obj.taskName) {
+      const date = new Date(obj.scheduledStartTo).toLocaleDateString('pt-BR');
+      const startTime = new Date(obj.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const endTime = new Date(obj.scheduledEndTo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return `${obj.studentName} — ${obj.taskName} em ${obj.internshipLocationName} (${date}, ${startTime}-${endTime})`;
+    }
+    if (obj.taskName && obj.preceptorNames) {
+      const date = new Date(obj.scheduledStartTo).toLocaleDateString('pt-BR');
+      const startTime = new Date(obj.scheduledStartTo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const endTime = new Date(obj.scheduledEndTo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return `${obj.taskName} — ${obj.internshipLocationName} (${date}, ${startTime}-${endTime}); Preceptores: ${obj.preceptorNames.join(', ')}`;
+    }
+    if (obj.name && obj.email && obj.cpf) {
+      const groups = obj.groupNames ? `; Grupos: ${obj.groupNames.join(', ')}` : '';
+      return `${obj.name} (CPF: ${obj.cpf}); Email: ${obj.email}${groups}`;
+    }
+    // Generic compact rendering (first 4 keys)
+    const entries = Object.entries(obj).slice(0, 4).map(([k, v]) => `${k}: ${v}`);
+    return entries.join(' | ');
   }
 
   // Usar CacheService em vez de Map local para persistir entre requisições
