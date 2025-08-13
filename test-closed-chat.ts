@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as readline from 'readline';
 
 // The URL of your running NestJS API
-const API_URL = 'http://localhost:3000/chat/closed';
+const API_URL = 'http://localhost:3001/chat/closed';
 // const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/closed';
 
 // Interface to match the structure of the API's state object

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Delete, Param } from '@nestjs/common';
 import { 
   ProcessOpenChatMessageUseCase, 
   ProcessOpenChatMessageRequest 
@@ -7,6 +7,7 @@ import {
   ProcessClosedChatMessageUseCase, 
   ProcessClosedChatMessageRequest 
 } from '../../application/use-cases/process-closed-chat-message.use-case';
+import { ProcessApiChatMessageUseCase } from '../../application/use-cases/process-api-chat-message.use-case';
 import { ClosedChatState } from '../../domain/flows/closed-chat.flow';
 
 // DTO for open chat
@@ -27,6 +28,13 @@ export class ClosedChatRequestDto implements ProcessClosedChatMessageRequest {
   channel: 'web' | 'whatsapp' | 'telegram';
 }
 
+// DTO for API chat
+export class ApiChatRequestDto {
+  message: string;
+  userId: string;
+  channel: 'web' | 'whatsapp' | 'telegram';
+}
+
 export class ChatResponseDto {
   response: string;
   success: boolean;
@@ -39,6 +47,7 @@ export class ChatController {
   constructor(
     private readonly processOpenChatMessageUseCase: ProcessOpenChatMessageUseCase,
     private readonly processClosedChatMessageUseCase: ProcessClosedChatMessageUseCase,
+    private readonly processApiChatMessageUseCase: ProcessApiChatMessageUseCase,
   ) {}
 
   @Post('open')
@@ -63,6 +72,21 @@ export class ChatController {
       success: result.success,
       error: result.error,
       nextState: result.nextState,
+    };
+  }
+
+  @Post('api')
+  @HttpCode(HttpStatus.OK)
+  async processApiMessage(@Body() request: ApiChatRequestDto): Promise<ChatResponseDto> {
+    console.log(`[CONTROLLER] Recebida requisição API - CPF: ${request.userId}, Mensagem: ${request.message}`);
+    
+    const result = await this.processApiChatMessageUseCase.execute(request.message, request.userId);
+    
+    console.log(`[CONTROLLER] Resultado: success=${result.success}, response length=${result.response.length}`);
+    
+    return {
+      response: result.response,
+      success: result.success,
     };
   }
 

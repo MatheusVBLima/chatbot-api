@@ -1,96 +1,152 @@
 import { Injectable } from '@nestjs/common';
-import { User } from '../../domain/entities/user.entity';
 import * as PDFDocument from 'pdfkit';
 import * as Papa from 'papaparse';
 
 @Injectable()
 export class ReportService {
 
-  /**
-   * Generates a formatted plain text report of a user's academic data.
-   */
-  public generateTxtReport(data: User | User[], requestedFields?: string[]): string {
-    const users = Array.isArray(data) ? data : [data];
-    if (users.length === 0) return 'Nenhum usuário para gerar relatório.';
-
-    const reports = users.map(user => {
-      // Re-use the single-user logic and just add a separator
-      const singleReport = this.generateSingleTxtReport(user, requestedFields);
-      return singleReport;
-    });
-
-    return reports.join('\n\n==================================================\n\n');
-  }
-
-  private generateSingleTxtReport(user: User, requestedFields?: string[]): string {
-    const hasField = (field: string) => !requestedFields || requestedFields.includes(field);
-    const hasSubjectField = () => hasField('subjects') || hasField('averageGrade') || hasField('absences');
-
-    let report = `🎓 Relatório Acadêmico de ${user.name}\n==================================================\n`;
-
-    if (hasField('university')) report += `Instituição: ${user.university || 'Não informado'}\n`;
-    if (hasField('course')) report += `Curso: ${user.course || 'Não informado'}\n`;
-    if (hasField('period')) report += `Período: ${user.period || 'Não informado'}\n`;
-
-    if ((user.subjects && user.subjects.length > 0) && hasSubjectField()) {
-      report += '==================================================\n\n Disciplinas:\n--------------------------------------------------\n';
-      user.subjects.forEach(subject => {
-        report += `\n📚 Matéria: ${subject.name}\n`;
-        if (hasField('averageGrade') || hasField('subjects')) report += `    - Média de Notas: ${subject.averageGrade}\n`;
-        if (hasField('absences') || hasField('subjects')) report += `    - Faltas: ${subject.absences}\n`;
-      });
-       report += `\n--------------------------------------------------`;
-    } else if (hasSubjectField()) {
-       report += `\nEste usuário não possui dados de disciplinas para exibir.`;
+  private formatDataForDisplay(data: any, reportTitle: string = 'Dados'): string {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      return 'Não há dados para gerar o relatório.';
     }
-    
-    report += `\nFim do Relatório.\n`;
-    return report.replace(/^ {4}/gm, '');
+
+    const dataArray = Array.isArray(data) ? data : [data];
+    let formatted = `RELATÓRIO: ${reportTitle.toUpperCase()}\n`;
+    formatted += '='.repeat(50) + '\n\n';
+
+    return this.formatDataContent(dataArray, formatted);
   }
 
-  /**
-   * Generates a CSV formatted report of a user's academic data.
-   */
-  public generateCsvReport(data: User | User[], requestedFields?: string[]): string {
-    const users = Array.isArray(data) ? data : [data];
-    if (users.length === 0) return Papa.unparse([{ "Erro": `Nenhum usuário para gerar relatório.` }]);
-    
-    const hasField = (field: string) => !requestedFields || requestedFields.includes(field);
-    
-    const allRows: any[] = [];
+  private formatDataForDisplayPDF(data: any, reportTitle: string = 'Dados'): string {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      return 'Não há dados para gerar o relatório.';
+    }
 
-    users.forEach(user => {
-      if (!user.subjects || user.subjects.length === 0) {
-        allRows.push({ 'Aluno': user.name, 'Erro': 'Não possui dados acadêmicos' });
-        return;
+    const dataArray = Array.isArray(data) ? data : [data];
+    let formatted = ''; // Sem título para PDF pois já está no cabeçalho
+
+    return this.formatDataContent(dataArray, formatted);
+  }
+
+  private formatDataContent(dataArray: any[], formatted: string): string {
+    dataArray.forEach((item, index) => {
+      formatted += `${index + 1}. `;
+      
+      // Atividades em andamento
+      if (item.studentName && item.taskName) {
+        const startTime = new Date(item.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const endTime = new Date(item.scheduledEndTo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(item.scheduledStartTo).toLocaleDateString('pt-BR');
+        
+        formatted += `${item.studentName}\n`;
+        formatted += `   Grupo: ${item.groupName}\n`;
+        formatted += `   Atividade: ${item.taskName}\n`;
+        formatted += `   Local: ${item.internshipLocationName}\n`;
+        formatted += `   Data: ${date}\n`;
+        formatted += `   Horário: ${startTime} - ${endTime}\n`;
+        formatted += `   Preceptor: ${item.preceptorName}\n`;
+      }
+      // Atividades agendadas
+      else if (item.taskName && item.preceptorNames) {
+        const startTime = new Date(item.scheduledStartTo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const endTime = new Date(item.scheduledEndTo).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(item.scheduledStartTo).toLocaleDateString('pt-BR');
+        
+        formatted += `Atividade Agendada\n`;
+        formatted += `   Grupo: ${item.groupName}\n`;
+        formatted += `   Atividade: ${item.taskName}\n`;
+        formatted += `   Local: ${item.internshipLocationName}\n`;
+        formatted += `   Data: ${date}\n`;
+        formatted += `   Horário: ${startTime} - ${endTime}\n`;
+        formatted += `   Preceptores: ${item.preceptorNames.join(', ')}\n`;
+      }
+      // Profissionais
+      else if (item.name && item.email) {
+        formatted += `${item.name}\n`;
+        formatted += `   CPF: ${item.cpf}\n`;
+        formatted += `   Email: ${item.email}\n`;
+        if (item.phone) formatted += `   Telefone: ${item.phone}\n`;
+        if (item.groupNames) formatted += `   Grupos: ${item.groupNames.join(', ')}\n`;
+        if (item.pendingValidationWorkloadMinutes !== undefined) {
+          formatted += `   Horas pendentes: ${item.pendingValidationWorkloadMinutes} min\n`;
+        }
+      }
+      // Estudantes
+      else if (item.name && item.groupNames) {
+        formatted += `${item.name}\n`;
+        formatted += `   CPF: ${item.cpf}\n`;
+        formatted += `   Email: ${item.email}\n`;
+        if (item.phone) formatted += `   Telefone: ${item.phone}\n`;
+        formatted += `   Grupos: ${item.groupNames.join(', ')}\n`;
+      }
+      // Dados genéricos
+      else {
+        formatted += `Registro ${index + 1}\n`;
+        Object.entries(item).forEach(([key, value]) => {
+          formatted += `   ${key}: ${value}\n`;
+        });
       }
       
-      const userRows = user.subjects.map(subject => {
-        const row: { [key: string]: any } = { 'Aluno': user.name };
-        
-        if (hasField('university')) row['Instituição'] = user.university;
-        if (hasField('course')) row['Curso'] = user.course;
-        if (hasField('period')) row['Período'] = user.period;
-        
-        row['Disciplina'] = subject.name;
-  
-        if (hasField('averageGrade') || hasField('subjects')) row['Media_Notas'] = subject.averageGrade;
-        if (hasField('absences') || hasField('subjects')) row['Faltas'] = subject.absences;
-  
-        return row;
-      });
-      allRows.push(...userRows);
+      formatted += '\n';
     });
-    
-    return Papa.unparse(allRows);
+
+    formatted += '='.repeat(50) + '\n';
+    formatted += `Relatório gerado em: ${new Date().toLocaleString('pt-BR')}\n`;
+    formatted += `Total de registros: ${dataArray.length}\n`;
+
+    return formatted;
   }
 
-  /**
-   * Generates a PDF buffer report of a user's academic data.
-   */
-  public generatePdfReport(data: User | User[], requestedFields?: string[]): Promise<Buffer> {
-    const users = Array.isArray(data) ? data : [data];
-    
+  public generateTxtReport(data: any, reportTitle: string = 'Dados'): string {
+    return this.formatDataForDisplay(data, reportTitle);
+  }
+
+  public generateCsvReport(data: any, reportTitle: string = 'Dados'): string {
+    if (!data) {
+      return Papa.unparse([{ "Erro": "Não há dados para gerar o relatório." }]);
+    }
+    const dataArray = Array.isArray(data) ? data : [data];
+    if (dataArray.length === 0) {
+      return Papa.unparse([{ "Erro": "Não há dados para gerar o relatório." }]);
+    }
+
+    // Preparar dados para CSV com cabeçalhos em português
+    const csvData = dataArray.map(item => {
+      const csvItem: any = {};
+      
+      if (item.studentName && item.taskName) {
+        // Atividades em andamento
+        csvItem['Estudante'] = item.studentName;
+        csvItem['Grupo'] = item.groupName;
+        csvItem['Atividade'] = item.taskName;
+        csvItem['Local'] = item.internshipLocationName;
+        csvItem['Data_Inicio'] = new Date(item.scheduledStartTo).toLocaleDateString('pt-BR');
+        csvItem['Hora_Inicio'] = new Date(item.startedAt).toLocaleTimeString('pt-BR');
+        csvItem['Hora_Fim'] = new Date(item.scheduledEndTo).toLocaleTimeString('pt-BR');
+        csvItem['Preceptor'] = item.preceptorName;
+      } else if (item.taskName && item.preceptorNames) {
+        // Atividades agendadas
+        csvItem['Grupo'] = item.groupName;
+        csvItem['Atividade'] = item.taskName;
+        csvItem['Local'] = item.internshipLocationName;
+        csvItem['Data'] = new Date(item.scheduledStartTo).toLocaleDateString('pt-BR');
+        csvItem['Hora_Inicio'] = new Date(item.scheduledStartTo).toLocaleTimeString('pt-BR');
+        csvItem['Hora_Fim'] = new Date(item.scheduledEndTo).toLocaleTimeString('pt-BR');
+        csvItem['Preceptores'] = item.preceptorNames.join(', ');
+      } else {
+        // Dados genéricos
+        Object.entries(item).forEach(([key, value]) => {
+          csvItem[key] = value;
+        });
+      }
+      
+      return csvItem;
+    });
+
+    return Papa.unparse(csvData);
+  }
+
+  public generatePdfReport(data: any, reportTitle: string = 'Dados'): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
@@ -99,56 +155,20 @@ export class ReportService {
         doc.on('data', buffers.push.bind(buffers));
         doc.on('end', () => resolve(Buffer.concat(buffers)));
 
-        users.forEach((user, index) => {
-          this.addPdfPage(doc, user, requestedFields);
-          if (index < users.length - 1) {
-            doc.addPage();
-          }
-        });
+        // Título
+        doc.fontSize(18).text(`RELATÓRIO: ${reportTitle.toUpperCase()}`, { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text('='.repeat(60), { align: 'center' });
+        doc.moveDown();
+
+        // Conteúdo formatado (sem título duplicado)
+        const content = this.formatDataForDisplayPDF(data, reportTitle);
+        doc.fontSize(10).font('Helvetica').text(content);
         
         doc.end();
       } catch (error) {
         reject(error);
       }
     });
-  }
-
-  private addPdfPage(doc: PDFKit.PDFDocument, user: User, requestedFields?: string[]) {
-      const hasField = (field: string) => !requestedFields || requestedFields.includes(field);
-      const hasSubjectField = () => hasField('subjects') || hasField('averageGrade') || hasField('absences');
-
-      doc.fontSize(20).text('Relatório Acadêmico', { align: 'center' });
-      doc.moveDown();
-
-      doc.fontSize(14).text(`Aluno: ${user.name}`);
-      if (hasField('university')) doc.text(`Instituição: ${user.university || 'Não informado'}`);
-      if (hasField('course')) doc.text(`Curso: ${user.course || 'Não informado'}`);
-      if (hasField('period')) doc.text(`Período: ${user.period || 'Não informado'}`);
-      doc.moveDown();
-
-      doc.strokeColor("#aaaaaa").lineWidth(1).moveTo(50, doc.y).lineTo(550, doc.y).stroke();
-      doc.moveDown();
-
-      if ((user.subjects && user.subjects.length > 0) && hasSubjectField()) {
-        doc.fontSize(16).text('Disciplinas', { underline: true });
-        doc.moveDown();
-
-        user.subjects.forEach(subject => {
-          let line = `📚 Matéria: ${subject.name}`;
-          let details: string[] = [];
-          if (hasField('averageGrade') || hasField('subjects')) details.push(`Média: ${subject.averageGrade}`);
-          if (hasField('absences') || hasField('subjects')) details.push(`Faltas: ${subject.absences}`);
-          
-          doc.fontSize(12).text(line, { continued: true });
-          if (details.length > 0) {
-            doc.text(` (${details.join(' | ')})`, { align: 'right' });
-          } else {
-            doc.text(''); // Finalize the line
-          }
-          doc.moveDown(0.5);
-        });
-      } else if (hasSubjectField()) {
-        doc.fontSize(12).text('Este usuário não possui dados de disciplinas para exibir.');
-      }
   }
 } 

@@ -1,5 +1,12 @@
-GET /virtual-assistance/coordinators/ongoing-activities/:cpf
-[
+import {
+    OngoingActivity,
+    ScheduledActivity,
+    Student,
+    Coordinator,
+    Professional
+} from "../../domain/services/virtual-assistance.service";
+
+export const ongoingActivities: OngoingActivity[] = [
   {
     "studentName": "Alice Ferreira",
     "groupName": "Grupo 4 - Saúde Mental",
@@ -30,10 +37,9 @@ GET /virtual-assistance/coordinators/ongoing-activities/:cpf
     "startedAt": "2025-07-24T09:10:00Z",
     "preceptorName": "Dr. Paulo Henrique"
   }
-]
+];
 
-GET /virtual-assistance/students/scheduled-activities/:cpf
-[
+export const scheduledActivities: ScheduledActivity[] = [
   {
     "groupName": "Grupo 3 - Saúde da Criança",
     "taskName": "Consulta Pediátrica Supervisionada",
@@ -58,10 +64,9 @@ GET /virtual-assistance/students/scheduled-activities/:cpf
     "scheduledEndTo": "2025-07-27T11:30:00Z",
     "preceptorNames": ["Dr. Ricardo Silva", "Dra. Ana Paula Teixeira"]
   }
-]
+];
 
-GET /virtual-assistance/students/professionals/:cpf
-[
+export const studentProfessionals: Professional[] = [
   {
     "cpf": "98765432100",
     "name": "Dr. João Carlos Oliveira",
@@ -139,10 +144,9 @@ GET /virtual-assistance/students/professionals/:cpf
     "phone": "41987654328",
     "groupNames": ["Grupo 5 - Saúde do Idoso"]
   }
-]
+];
 
-GET /virtual-assistance/coordinators/professionals/:cpf
-[
+export const coordinatorProfessionals: Professional[] = [
   {
     "cpf": "11223344556",
     "name": "Dr. Gustavo Andrade",
@@ -167,10 +171,9 @@ GET /virtual-assistance/coordinators/professionals/:cpf
     "groupNames": ["Grupo 5 - Saúde do Idoso"],
     "pendingValidationWorkloadMinutes": 0
   }
-]
+];
 
-GET /virtual-assistance/coordinators/students/:cpf
-[
+export const coordinatorStudents: Student[] = [
   {
     "cpf": "55443322100",
     "name": "Alice Ferreira",
@@ -192,10 +195,10 @@ GET /virtual-assistance/coordinators/students/:cpf
     "phone": "41992345678",
     "groupNames": ["Grupo 3 - Saúde da Criança", "Grupo 5 - Saúde do Idoso"]
   }
-]
+];
 
-GET /virtual-assistance/coordinators/:cpf
-{
+export const coordinatorDetails: Coordinator = {
+  "cpf": "111.111.111-11", // Assigned CPF for login
   "coordinatorName": "Prof. Daniela Moura",
   "coordinatorEmail": "daniela.moura@ufpr.br",
   "coordinatorPhone": "41991112233",
@@ -214,4 +217,18 @@ GET /virtual-assistance/coordinators/:cpf
       "courseNames": ["Medicina"]
     }
   ]
-}
+};
+
+// --- Single Source of Truth for All People in the System ---
+// We create a simplified list for user lookup, as the coordinator has a different structure
+export const allMockUsers = [
+    ...studentProfessionals,
+    ...coordinatorProfessionals,
+    ...coordinatorStudents,
+    { 
+      cpf: coordinatorDetails.cpf, 
+      name: coordinatorDetails.coordinatorName,
+      email: coordinatorDetails.coordinatorEmail,
+      phone: coordinatorDetails.coordinatorPhone
+    }
+]; 
