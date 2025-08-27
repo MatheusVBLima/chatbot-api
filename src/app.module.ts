@@ -48,7 +48,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     },
     {
       provide: VIRTUAL_ASSISTANCE_SERVICE,
-      useClass: MockVirtualAssistanceService,
+      useClass: ApiVirtualAssistanceService,
     }
   ],
 })

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { User } from '../../domain/entities/user.entity';
 import { AIService } from '../../domain/services/ai.service';
 import { VirtualAssistanceService } from '../../domain/services/virtual-assistance.service';
+import { ReportService } from '../../application/services/report.service';
 import { randomUUID } from 'crypto';
 import { CacheService } from '../../application/services/cache.service';
 
@@ -26,9 +27,20 @@ export class GeminiAIService implements AIService {
     this.apiBaseUrl = configuredBaseUrl || renderExternalUrl || 'http://localhost:3001';
   }
 
-  // Método mantido apenas para compatibilidade com process-api-chat-message.use-case.ts
+  // This method is deprecated and will be replaced by the tool-calling logic.
+  // We keep it for now to avoid breaking changes, but it should be removed later.
   async generateResponse(userMessage: string, userData: User | User[]): Promise<string> {
-    return "Este endpoint está descontinuado. Por favor, use o chat open (/chat/open) que possui todas as funcionalidades atualizadas.";
+    const systemPrompt = Array.isArray(userData)
+      ? this.buildSystemPromptForMultipleUsers(userData)
+      : this.buildSystemPrompt(userData);
+    
+    const { text } = await streamText({
+      model: this.model,
+      system: systemPrompt,
+      prompt: userMessage,
+    });
+
+    return text;
   }
   
   async processToolCall(actor: User, userMessage: string, availableTools: Record<string, CoreTool>): Promise<string> {
@@ -320,47 +332,46 @@ export class GeminiAIService implements AIService {
         return result;
       
       case 'findPersonByName':
-        // Buscar pessoa específica por nome em TODOS os endpoints possíveis
+        // Buscar pessoa específica por nome
         const { name: searchName, cpf: searcherCpf } = args;
-        let foundPerson: any = null;
         
-        // Lista de todos os endpoints que retornam pessoas
-        const searchEndpoints = [
-          {
-            name: 'Estudantes (coordenador)',
-            call: () => this.virtualAssistanceService.getCoordinatorsStudents(searcherCpf),
-            cache: (data: any[]) => this.cacheStudentNameMapping(searcherCpf, data)
-          },
-          {
-            name: 'Profissionais (coordenador)', 
-            call: () => this.virtualAssistanceService.getCoordinatorsProfessionals(searcherCpf),
-            cache: (data: any[]) => this.cacheProfessionalNameMapping(searcherCpf, data)
-          },
-          {
-            name: 'Profissionais (estudante)', 
-            call: () => this.virtualAssistanceService.getStudentsProfessionals(searcherCpf),
-            cache: (data: any[]) => this.cacheProfessionalNameMapping(searcherCpf, data)
-          }
-        ];
+        // Primeiro buscar em estudantes
+        let allStudents: any[] = [];
+        try {
+          allStudents = await this.virtualAssistanceService.getCoordinatorsStudents(searcherCpf);
+          this.cacheStudentNameMapping(searcherCpf, allStudents);
+        } catch (error) {
+          console.log('Erro ao buscar estudantes:', error);
+        }
         
-        // Buscar em todos os endpoints até encontrar a pessoa
-        for (const endpoint of searchEndpoints) {
-          if (foundPerson) break; // Se já encontrou, para
-          
+        let foundPerson: any = allStudents.find(student => 
+          student.name.toLowerCase().includes(searchName.toLowerCase())
+        );
+        
+        // Se não encontrou em estudantes, buscar em profissionais
+        if (!foundPerson) {
+          let allProfessionals: any[] = [];
           try {
-            console.log(`findPersonByName: Buscando "${searchName}" em ${endpoint.name}`);
-            const people = await endpoint.call();
-            endpoint.cache(people);
+            allProfessionals = await this.virtualAssistanceService.getCoordinatorsProfessionals(searcherCpf);
+            this.cacheProfessionalNameMapping(searcherCpf, allProfessionals);
             
-            foundPerson = people.find(person => 
-              person.name.toLowerCase().includes(searchName.toLowerCase())
+            foundPerson = allProfessionals.find(prof => 
+              prof.name.toLowerCase().includes(searchName.toLowerCase())
             );
-            
-            if (foundPerson) {
-              console.log(`findPersonByName: Encontrado em ${endpoint.name}:`, foundPerson.name);
-            }
           } catch (error) {
-            console.log(`Erro ao buscar em ${endpoint.name}:`, error);
+            console.log('Erro ao buscar profissionais:', error);
+          }
+          
+          // Se não encontrou nem em coordenador, tentar em estudante-profissionais
+          if (!foundPerson) {
+            try {
+              const studentProfs = await this.virtualAssistanceService.getStudentsProfessionals(searcherCpf);
+              foundPerson = studentProfs.find(prof => 
+                prof.name.toLowerCase().includes(searchName.toLowerCase())
+              );
+            } catch (error) {
+              console.log('Erro ao buscar student professionals:', error);
+            }
           }
         }
         
@@ -369,7 +380,7 @@ export class GeminiAIService implements AIService {
           this.cacheService.set(this.getLastResultCacheKey(searcherCpf), [foundPerson], 3600000);
           return foundPerson;
         } else {
-          return { error: `Pessoa com nome "${searchName}" não encontrada em nenhum endpoint.` };
+          return { error: `Pessoa com nome "${searchName}" não encontrada.` };
         }
 
       case 'generateReport':
@@ -409,68 +420,121 @@ export class GeminiAIService implements AIService {
 
   private getToolCallSystemPrompt(actor: User): string {
     return `
-      Você é um assistente virtual inteligente para a plataforma Ad-Astra.
-      Usuário logado: ${actor.name} (CPF: ${actor.cpf}, Perfil: ${actor.role}).
+      Você é um assistente virtual para a plataforma Ad-Astra.
+      O usuário que está falando com você é: ${actor.name} (CPF: ${actor.cpf}, Perfil: ${actor.role}).
 
-      📊 ENDPOINTS DISPONÍVEIS E SEUS FORMATOS:
-
-      🔒 APENAS COORDENADORES:
-      • getCoordinatorsOngoingActivities(cpf_coordenador)
-        Retorna: [{studentName, groupName, taskName, internshipLocationName, preceptorName, startedAt, scheduledEndTo, ...}]
-        
-      • getCoordinatorsProfessionals(cpf_coordenador)  
-        Retorna: [{name, cpf, email, phone, groupNames, pendingValidationWorkloadMinutes, ...}]
-        
-      • getCoordinatorsStudents(cpf_coordenador)
-        Retorna: [{name, cpf, email, phone, groupNames, ...}]
-        
-      • getCoordinatorDetails(cpf_coordenador)
-        Retorna: {coordinatorName, coordinatorEmail, coordinatorPhone, groupNames, organizationsAndCourses, ...}
-
-      👥 QUALQUER USUÁRIO (incluindo coordenadores):
-      • getStudentsScheduledActivities(cpf_estudante)
-        Retorna: [{groupName, taskName, internshipLocationName, scheduledStartTo, scheduledEndTo, preceptorNames, ...}]
-        
-      • getStudentsProfessionals(cpf_estudante)
-        Retorna: [{name, cpf, email, phone, groupNames, ...}]
-        ⚠️ IMPORTANTE: Coordenadores podem usar este endpoint! Aqui estão os PRECEPTORES/PROFISSIONAIS que trabalham com estudantes.
-
-      🔧 FERRAMENTAS AUXILIARES:
-      • findPersonByName(name, cpf_usuario_logado)
-        Busca pessoa por nome em TODOS os endpoints disponíveis. Sempre funciona para coordenadores.
-        
-      • generateReport(format, cpf_usuario_logado)
-        Gera relatório dos últimos dados buscados. Formatos: pdf, csv, txt.
-
-      🎯 COMO USAR SUA INTELIGÊNCIA:
-
-      1. **PERMISSÕES**: 
-         - ESTUDANTES: só endpoints "QUALQUER USUÁRIO"
-         - COORDENADORES: TODOS os endpoints (inclusive getStudentsProfessionals!)
-
-      2. **BUSCAR PESSOAS (MUITO IMPORTANTE)**:
-         - Use findPersonByName que busca em TODOS os endpoints automaticamente
-         - PRECEPTORES/DOUTORES estão em getStudentsProfessionals, não em getCoordinatorsProfessionals
-         - Coordenadores têm acesso completo a todos os dados
-
-      3. **COMBINAR DADOS E SER PROATIVO**: Use sua inteligência para combinar informações de diferentes endpoints.
-         - Exemplo: atividades em andamento → identificar preceptor → buscar dados do preceptor
-         - **IMPORTANTE**: Se o usuário perguntar sobre preceptores/profissionais de um GRUPO, busque em getStudentsProfessionals e filtre por groupNames
-         - Não seja conservador - se tem acesso aos dados, use-os para dar respostas completas
-         - Exemplo: "preceptores do Grupo 2" → getStudentsProfessionals → filtrar por groupNames contendo "Grupo 2"
-
-      4. **RELATÓRIOS**: Para gerar relatórios de terceiros, PRIMEIRO use findPersonByName para encontrar a pessoa, DEPOIS chame generateReport.
-
-      5. **CPF PADRÃO**: Use sempre o CPF do usuário logado (${actor.cpf}) nos endpoints.
-
-      6. **CONTEXTO**: Use o histórico da conversa para entender referências como "essa pessoa", "dados anteriores", etc.
-
-      Seja inteligente, proativo e confiante! Use os dados disponíveis para dar respostas completas.
+      REGRAS DE OURO:
+      1.  **SEMPRE use o CPF do ator (${actor.cpf}) para as ferramentas, A MENOS QUE o usuário peça explicitamente por dados de OUTRA PESSOA.**
+          - Exemplo: Se o coordenador (ator) pergunta "liste os alunos", use o CPF do coordenador.
+          - Exemplo: Se qualquer usuário pergunta "quais minhas atividades?", use o CPF do próprio usuário.
+      2.  **BUSCA POR NOME DE TERCEIROS (MUITO IMPORTANTE):**
+          - Se o usuário mencionar o NOME de outra pessoa (ex: "Alice Ferreira", "Dr. João Silva"), siga este fluxo OBRIGATÓRIO:
+            a) Primeiro chame getCoordinatorsStudents(${actor.cpf}) para listar todos os estudantes
+            b) Se NÃO encontrar o nome, chame getCoordinatorsProfessionals(${actor.cpf}) para listar profissionais
+            c) Procure o nome mencionado nas listas retornadas e extraia seu CPF
+            d) Use esse CPF nas próximas ferramentas para buscar dados específicos da pessoa
+          - Exemplo: "Quais atividades da Alice Ferreira?" → liste estudantes → encontre Alice → use CPF dela
+          - Exemplo: "Dados do Dr. João Mendes" → liste estudantes → não achou → liste profissionais → encontre Dr. João
+          - NUNCA peça CPF se o usuário fornecer um nome. Sempre tente encontrar o CPF através da busca em múltiplos endpoints.
+      3.  **PERMISSÕES E ACESSO:**
+          - ESTUDANTES só podem acessar: suas atividades AGENDADAS (getStudentsScheduledActivities) e seus profissionais (getStudentsProfessionals)
+          - ESTUDANTES NÃO podem ver atividades EM ANDAMENTO - responda "Apenas coordenadores têm acesso a atividades em andamento"
+          - COORDENADORES têm acesso total: use getCoordinatorsOngoingActivities para atividades em andamento, todas as outras ferramentas conforme necessário
+      4.  **PERGUNTAS AMBÍGUAS SOBRE ATIVIDADES:**
+          - Para estudantes: Se perguntarem sobre "atividades" genericamente, explique que você só pode mostrar atividades AGENDADAS/PROGRAMADAS/FUTURAS
+          - Para coordenadores: Se perguntarem sobre "atividades em andamento", use getCoordinatorsOngoingActivities; se perguntarem sobre "atividades agendadas", use getStudentsScheduledActivities; se for genérico, pergunte qual tipo querem
+      5.  **BUSCA E FILTRAGEM INTELIGENTE:**
+          - Ao buscar atividades em andamento, se o usuário mencionar um estudante específico, filtre os resultados para mostrar apenas as atividades daquela pessoa
+          - Combine dados de múltiplos endpoints quando necessário (ex: atividades + dados pessoais)
+          - Apresente informações consolidadas de forma clara
+      6.  **Para a ferramenta 'generateReport', SEMPRE use o CPF do ator (${actor.cpf}).**
+      7.  **GERAR RELATÓRIOS:** 
+          - Quando o usuário pedir relatório de seus PRÓPRIOS dados: use generateReport diretamente
+          - Quando o usuário pedir relatório de TERCEIROS (outra pessoa):
+            a) PRIMEIRO use findPersonByName para buscar a pessoa específica
+            b) DEPOIS chame generateReport (os dados já estarão no cache)
+          - Exemplo: "relatório da Dra. Carla" → findPersonByName("Dra. Carla Souza") → generateReport
+          - NUNCA gere relatório de terceiros sem usar findPersonByName primeiro
+      8.  **CONTEXTO DA CONVERSA:** Você tem acesso ao histórico completo da conversa. Use esse contexto para entender referências a dados anteriores como "esses dados", "o que mostrei", "dados anteriores".
+      9.  **CACHE DE NOMES:** Se você já buscou a lista de estudantes nesta conversa e encontrou o CPF de alguém, pode reutilizar essa informação sem buscar novamente.
+      10. Quando receber o resultado de uma ferramenta, apresente os dados ao usuário de forma clara e amigável. Formate como uma lista ou um parágrafo conciso. Não inclua os nomes técnicos dos campos (como 'studentName' ou 'taskName').
       
-      **EXEMPLO DE BUSCA POR GRUPO:**
-      Usuário: "Quais os preceptores do Grupo 2?"
-      Ação: getStudentsProfessionals(cpf_coordenador) → filtrar todos com groupNames contendo "Grupo 2" → listar os nomes
+      Ferramentas disponíveis: getCoordinatorsOngoingActivities, getCoordinatorsProfessionals, getCoordinatorsStudents, getCoordinatorDetails, getStudentsScheduledActivities, getStudentsProfessionals, findPersonByName, generateReport.
     `;
   }
   
+  // The following prompt-building methods are part of the old implementation and can be removed or refactored later.
+  private buildSystemPromptForMultipleUsers(users: User[]): string {
+    const userPrompts = users.map(user => this.buildSingleUserPrompt(user)).join('\n\n');
+    return `
+Você é um assistente virtual inteligente para uma instituição de ensino.
+Você está respondendo a uma consulta de um coordenador sobre múltiplos usuários.
+Abaixo estão os dados dos usuários relevantes para a pergunta.
+
+${userPrompts}
+
+INSTRUÇÕES:
+1. Responda à pergunta do coordenador usando os dados fornecidos.
+2. Analise a pergunta do coordenador para identificar os campos de dados específicos solicitados (por exemplo, "faltas", "universidade", "média").
+3. Formate sua resposta para apresentar APENAS os dados solicitados de forma clara e concisa para cada usuário. NÃO inclua informações não solicitadas.
+4. Se a pergunta for um pedido genérico de "relatório" sem especificar os campos, aí sim você pode listar todos os dados acadêmicos, mas ainda assim, faça-o diretamente na resposta, sem gerar links.
+5. Não invente ou especule informações. Se os dados solicitados não estiverem disponíveis para um usuário, informe isso claramente (ex: "A informação de faltas não está disponível para Carlos").
+`;
+  }
+
+  private buildSystemPrompt(userData: User): string {
+    const roleContext = userData.role === 'coordinator'
+      ? 'Você é um coordenador. Aja como um assistente que consulta dados de outros usuários. Se a pergunta for sobre um usuário específico, os dados dele serão fornecidos.'
+      : 'Aja como um assistente pessoal para o usuário abaixo.';
+
+    return `
+Você é um assistente virtual inteligente para uma instituição de ensino.
+${roleContext}
+
+DADOS DO USUÁRIO SENDO CONSULTADO:
+${this.buildSingleUserPrompt(userData)}
+
+INSTRUÇÕES GERAIS:
+1. Responda apenas perguntas relacionadas aos dados cadastrais fornecidos, incluindo perguntas sobre matérias específicas (notas, faltas, etc.).
+2. Se a pergunta do usuário for um pedido de relatório sobre os dados acadêmicos (histórico, notas, faltas, etc.), e **NÃO mencionar uma matéria específica**, NÃO liste os dados. Em vez disso, responda EXATAMENTE com o texto abaixo:
+   """
+   Claro! Preparei o relatório acadêmico de ${userData.name}. Escolha o formato para download:
+   - [Baixar em PDF](http://localhost:3000/reports/${userData.id}/pdf)
+   - [Baixar em CSV (para Excel)](http://localhost:3000/reports/${userData.id}/csv)
+   - [Ver como Texto Simples](http://localhost:3000/reports/${userData.id}/txt)
+   """
+3. Se o pedido de relatório for para UMA matéria específica, a IA tem permissão para responder diretamente com os dados (ex: "A média de Maria em Cálculo II é 8.5 e ela tem 2 faltas.") ou pode gerar os links de relatório filtrados.
+4. Seja cordial e profissional. Se o usuário for um coordenador, você pode ser um pouco mais direto e informativo.
+5. Se perguntado sobre dados que não estão disponíveis, informe que a informação não está no cadastro do usuário.
+6. Não invente ou especule informações.
+7. Se a pergunta for sobre qual o melhor time de futebol, explique brevemente a historia do palmeiras.
+`;
+  }
+
+  private buildSingleUserPrompt(userData: User): string {
+    let academicData = '\n- Status Acadêmico: Não informado.';
+    if (userData.subjects && userData.subjects.length > 0) {
+      const subjectsList = userData.subjects.map(s => `  - ${s.name} (Média: ${s.averageGrade}, Faltas: ${s.absences})`).join('\n');
+      academicData = `
+- Universidade: ${userData.university || 'Não informado'}
+- Curso: ${userData.course || 'Não informado'}
+- Período: ${userData.period || 'Não informado'}º
+- Disciplinas Atuais:
+${subjectsList}
+      `;
+    }
+
+    return `
+- ID: ${userData.id}
+- Nome: ${userData.name}
+- Perfil: ${userData.role}
+- Email: ${userData.email}
+- Telefone: ${userData.phone}
+- CPF: ${userData.cpf}
+- Data de Nascimento: ${userData.birthDate.toLocaleDateString('pt-BR')}
+- Endereço: ${userData.address.street}, ${userData.address.number}, ${userData.address.city} - ${userData.address.state}, CEP: ${userData.address.zipCode}
+- Cadastrado em: ${userData.createdAt.toLocaleDateString('pt-BR')}
+- Última atualização: ${userData.updatedAt.toLocaleDateString('pt-BR')}${academicData}
+`;
+  }
 } 

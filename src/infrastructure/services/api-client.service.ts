@@ -51,24 +51,33 @@ export interface CoordinatorInfo {
 
 @Injectable()
 export class ApiClientService {
-  private readonly client: AxiosInstance;
-  private readonly baseURL = 'https://api.radeapp.com';
-  private readonly authToken = 'olWbHZNVHMx8qIc6L0spduLuCL5PQzXz';
+  private readonly baseURL = 'https://api.stg.radeapp.com';
+  private readonly stagingToken = 'JQiFrDkkM5eNKtLxwNKzZoga0xkeRDAZ';
 
-  constructor() {
-    this.client = axios.create({
+  constructor() {}
+
+  private createClient(token?: string): AxiosInstance {
+    const headers: any = {
+      'Content-Type': 'application/json',
+    };
+
+    // Use staging token (without Bearer prefix as discovered in tests)
+    const authToken = token || this.stagingToken;
+    if (authToken) {
+      headers['Authorization'] = authToken;
+    }
+
+    return axios.create({
       baseURL: this.baseURL,
-      headers: {
-        'Authorization': this.authToken,
-        'Content-Type': 'application/json',
-      },
+      headers,
       timeout: 10000,
     });
   }
 
-  async getCoordinatorOngoingActivities(cpf: string): Promise<OngoingActivity[]> {
+  async getCoordinatorOngoingActivities(cpf: string, token?: string): Promise<OngoingActivity[]> {
     try {
-      const response: AxiosResponse<OngoingActivity[]> = await this.client.get(
+      const client = this.createClient(token);
+      const response: AxiosResponse<OngoingActivity[]> = await client.get(
         `/virtual-assistance/coordinators/ongoing-activities/${cpf}`
       );
       return response.data;
@@ -80,10 +89,11 @@ export class ApiClientService {
     }
   }
 
-  async getStudentScheduledActivities(cpf: string): Promise<ScheduledActivity[]> {
+  async getStudentScheduledActivities(cpf: string, token?: string): Promise<ScheduledActivity[]> {
     try {
       console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/students/scheduled-activities/${cpf}`);
-      const response: AxiosResponse<ScheduledActivity[]> = await this.client.get(
+      const client = this.createClient(token);
+      const response: AxiosResponse<ScheduledActivity[]> = await client.get(
         `/virtual-assistance/students/scheduled-activities/${cpf}`
       );
       console.log(`[API-CLIENT] Atividades encontradas: ${response.data.length} atividades`);
@@ -97,9 +107,10 @@ export class ApiClientService {
     }
   }
 
-  async getStudentProfessionals(cpf: string): Promise<Professional[]> {
+  async getStudentProfessionals(cpf: string, token?: string): Promise<Professional[]> {
     try {
-      const response: AxiosResponse<Professional[]> = await this.client.get(
+      const client = this.createClient(token);
+      const response: AxiosResponse<Professional[]> = await client.get(
         `/virtual-assistance/students/professionals/${cpf}`
       );
       return response.data;
@@ -111,9 +122,10 @@ export class ApiClientService {
     }
   }
 
-  async getCoordinatorProfessionals(cpf: string): Promise<Professional[]> {
+  async getCoordinatorProfessionals(cpf: string, token?: string): Promise<Professional[]> {
     try {
-      const response: AxiosResponse<Professional[]> = await this.client.get(
+      const client = this.createClient(token);
+      const response: AxiosResponse<Professional[]> = await client.get(
         `/virtual-assistance/coordinators/professionals/${cpf}`
       );
       return response.data;
@@ -125,9 +137,10 @@ export class ApiClientService {
     }
   }
 
-  async getCoordinatorStudents(cpf: string): Promise<Student[]> {
+  async getCoordinatorStudents(cpf: string, token?: string): Promise<Student[]> {
     try {
-      const response: AxiosResponse<Student[]> = await this.client.get(
+      const client = this.createClient(token);
+      const response: AxiosResponse<Student[]> = await client.get(
         `/virtual-assistance/coordinators/students/${cpf}`
       );
       return response.data;
@@ -139,10 +152,11 @@ export class ApiClientService {
     }
   }
 
-  async getCoordinatorInfo(cpf: string): Promise<CoordinatorInfo> {
+  async getCoordinatorInfo(cpf: string, token?: string): Promise<CoordinatorInfo> {
     try {
       console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/coordinators/${cpf}`);
-      const response: AxiosResponse<CoordinatorInfo> = await this.client.get(
+      const client = this.createClient(token);
+      const response: AxiosResponse<CoordinatorInfo> = await client.get(
         `/virtual-assistance/coordinators/${cpf}`
       );
       console.log(`[API-CLIENT] Coordenador encontrado: ${response.data.coordinatorName}`);

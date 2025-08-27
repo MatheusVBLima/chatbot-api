@@ -9,11 +9,15 @@ export class ApiVirtualAssistanceService {
     return this.apiClient.getCoordinatorOngoingActivities(cpf);
   }
 
-  async getStudentScheduledActivities(cpf: string): Promise<ScheduledActivity[]> {
+  async getCoordinatorsOngoingActivities(cpf: string): Promise<OngoingActivity[]> {
+    return this.apiClient.getCoordinatorOngoingActivities(cpf);
+  }
+
+  async getStudentsScheduledActivities(cpf: string): Promise<ScheduledActivity[]> {
     return this.apiClient.getStudentScheduledActivities(cpf);
   }
 
-  async getStudentProfessionals(cpf: string): Promise<Professional[]> {
+  async getStudentsProfessionals(cpf: string): Promise<Professional[]> {
     return this.apiClient.getStudentProfessionals(cpf);
   }
 
@@ -21,11 +25,23 @@ export class ApiVirtualAssistanceService {
     return this.apiClient.getCoordinatorProfessionals(cpf);
   }
 
+  async getCoordinatorsProfessionals(cpf: string): Promise<Professional[]> {
+    return this.apiClient.getCoordinatorProfessionals(cpf);
+  }
+
   async getCoordinatorStudents(cpf: string): Promise<Student[]> {
     return this.apiClient.getCoordinatorStudents(cpf);
   }
 
+  async getCoordinatorsStudents(cpf: string): Promise<Student[]> {
+    return this.apiClient.getCoordinatorStudents(cpf);
+  }
+
   async getCoordinatorInfo(cpf: string): Promise<CoordinatorInfo> {
+    return this.apiClient.getCoordinatorInfo(cpf);
+  }
+
+  async getCoordinatorDetails(cpf: string): Promise<any> {
     return this.apiClient.getCoordinatorInfo(cpf);
   }
 
@@ -58,8 +74,8 @@ export class ApiVirtualAssistanceService {
     // Se não for coordenador, tenta como estudante
     console.log(`[DEBUG] Tentando buscar como estudante...`);
     try {
-      data.scheduledActivities = await this.getStudentScheduledActivities(cpf);
-      data.professionals = await this.getStudentProfessionals(cpf);
+      data.scheduledActivities = await this.getStudentsScheduledActivities(cpf);
+      data.professionals = await this.getStudentsProfessionals(cpf);
       console.log(`[DEBUG] Dados de estudante obtidos com sucesso`);
       return data;
     } catch (studentError) {

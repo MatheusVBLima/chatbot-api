@@ -1,8 +1,7 @@
 import axios from 'axios';
 import * as readline from 'readline';
 
-const API_URL = 'http://localhost:3001/chat/open';
-/* const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/open'; */
+const API_URL = 'https://api.stg.radeapp.com/chat/open';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -14,7 +13,7 @@ function askQuestion(query: string): Promise<string> {
 }
 
 async function startChat() {
-  console.log('--- Iniciando teste do Chat Aberto (IA) ---');
+  console.log('--- Iniciando teste do Chat Aberto (IA) - STAGING ---');
   
   console.log('\nUse um dos CPFs abaixo para simular o login de um usuário:');
   console.log('------------------------------------------------------------------');
@@ -64,7 +63,7 @@ async function startChat() {
   console.log('   Digite "sair" a qualquer momento para terminar.');
   console.log('\n🔗 IMPORTANTE: Links de download gerados:');
   console.log('   • Os links retornados são válidos e podem ser acessados no navegador');
-  console.log('   • Formato: http://localhost:3001/reports/from-cache/{id}/{formato}');
+  console.log('   • Formato: https://api.stg.radeapp.com/reports/from-cache/{id}/{formato}');
   console.log('   • Copie e cole o link no navegador para baixar o arquivo');
   
   let running = true;
@@ -96,7 +95,7 @@ async function startChat() {
         console.log(`\n🤖 Chatbot: ${apiResponse}`);
         
         // Detectar e destacar links de download
-        if (apiResponse.includes('http://localhost:3001/reports/')) {
+        if (apiResponse.includes('https://api.stg.radeapp.com/reports/')) {
           console.log('\n🎉 LINK DE DOWNLOAD GERADO!');
           console.log('💡 Copie o link acima e cole no seu navegador para baixar o arquivo.');
           console.log('📁 O arquivo será baixado automaticamente quando você acessar o link.');

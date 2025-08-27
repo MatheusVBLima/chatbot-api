@@ -1,0 +1,7 @@
+Eu quero focar no chat open. Vc consegue ver no arquivo mock-virtual-assistance-service.ts os enpoints e em mock-virtual-assistance-data.ts os retornos q vou ter para essas rotas. A finalidade desse chat open eh ser um espelho e servir de teste para o chat api então ele tem q funcionar bem.
+
+A IA tem q entender, pelo tipo de dado retornado, o q ela tem disponível para utilizar. Ela tem q entender o tipo de retorno de cada endpoint para que quando o usuário fizer uma pergunta ela souber qual endpoint chamar.
+
+A IA tambem tem q ser capaz de gerar relatórios com os dados pedidos pelo usuário e deve ser possível retornar em formato pdf, csv e texto (que vai vir formatado para melhor entendimento). 
+
+A conversa deve ficar em cache para que, por exemplo, caso o usuário seja coordenador e peça para ver quais atividade a aluna Alice Ferreira esta tendo atualmente e quais os dados dela a IA tem q entender q em /virtual-assistance/coordinators/ongoing-activities/:cpf ela vai ter as atividades q estao acontecendo para o cpf dela e ai ela pode achar as atividades de Alice Ferreira e que para ver os dados de Alice Ferreira ela tem q chamar /virtual-assistance/coordinators/students/:cpf. Ai depois de ver cada dado pedido e o usuário pedir um relatório com esses dados pedidos, a IA tem q entender que a pessoa quer um relatório com as atividades que estao acontecendo de Alice Ferreira e os dados dela. Ai a IA deve eprguntar se a pessoa quer em pdf, csv ou texto caso o usuário nao tenha especificado.

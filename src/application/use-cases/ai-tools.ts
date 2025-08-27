@@ -34,6 +34,15 @@ export const virtualAssistanceTools = {
     parameters: cpfSchema,
   }),
 
+  // --- Search Tools ---
+  findPersonByName: tool({
+    description: 'Busca uma pessoa específica por nome entre estudantes e profissionais. Use antes de gerar relatórios de terceiros.',
+    parameters: z.object({
+      name: z.string().describe('O nome da pessoa a ser buscada (ex: "Dra. Carla Souza", "Alice Ferreira")'),
+      cpf: z.string().describe('O CPF do usuário logado fazendo a busca.'),
+    }),
+  }),
+
   // --- Generic Report Tool ---
   generateReport: tool({
     description: 'OBRIGATÓRIO: Use esta ferramenta sempre que o usuário pedir para gerar relatório, exportar dados, baixar arquivos ou criar documentos. Funciona com qualquer resultado de busca anterior. Palavras-chave: "relatório", "exportar", "baixar", "PDF", "CSV", "TXT", "gerar", "arquivo".',

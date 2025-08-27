@@ -86,9 +86,10 @@ export class ProcessOpenChatMessageUseCase {
       getCoordinatorDetails: virtualAssistanceTools.getCoordinatorDetails,
     };
 
-    // The report tool is available for everyone
+    // The report and search tools are available for everyone
     const commonTools = {
       generateReport: virtualAssistanceTools.generateReport,
+      findPersonByName: virtualAssistanceTools.findPersonByName,
     };
 
     if (role === 'coordinator') {

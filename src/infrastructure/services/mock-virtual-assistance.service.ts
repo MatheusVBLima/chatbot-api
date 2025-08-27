@@ -44,7 +44,13 @@ export class MockVirtualAssistanceService implements VirtualAssistanceService {
   async getStudentsScheduledActivities(cpf: string): Promise<ScheduledActivity[]> {
     console.log(`Mock: Buscando atividades agendadas para o CPF ${cpf}.`);
     
-    // Find the student to get their groups
+    // Se for coordenador, retorna TODAS as atividades agendadas
+    if (cpf === coordinatorDetails.cpf || cpf === '111.111.111-11') {
+      console.log(`Mock: Coordenador tem acesso a TODAS as ${scheduledActivities.length} atividades agendadas.`);
+      return scheduledActivities;
+    }
+    
+    // Se for estudante, filtra pelos grupos do estudante
     const student = coordinatorStudents.find(s => s.cpf === cpf);
     if (!student) {
       console.log(`Mock: Estudante com CPF ${cpf} não encontrado.`);
@@ -56,14 +62,20 @@ export class MockVirtualAssistanceService implements VirtualAssistanceService {
       student.groupNames.includes(activity.groupName)
     );
     
-    console.log(`Mock: Encontradas ${filteredActivities.length} atividades para os grupos: ${student.groupNames.join(', ')}`);
+    console.log(`Mock: Encontradas ${filteredActivities.length} atividades para os grupos do estudante: ${student.groupNames.join(', ')}`);
     return filteredActivities;
   }
 
   async getStudentsProfessionals(cpf: string): Promise<Professional[]> {
-    console.log(`Mock: Buscando profissionais para o aluno com CPF ${cpf}.`);
+    console.log(`Mock: Buscando profissionais para o CPF ${cpf}.`);
     
-    // Find the student to get their groups
+    // Se for coordenador, retorna TODOS os profissionais
+    if (cpf === coordinatorDetails.cpf || cpf === '111.111.111-11') {
+      console.log(`Mock: Coordenador tem acesso a TODOS os ${studentProfessionals.length} profissionais.`);
+      return studentProfessionals;
+    }
+    
+    // Se for estudante, filtra pelos grupos do estudante
     const student = coordinatorStudents.find(s => s.cpf === cpf);
     if (!student) {
       console.log(`Mock: Estudante com CPF ${cpf} não encontrado.`);
@@ -75,7 +87,7 @@ export class MockVirtualAssistanceService implements VirtualAssistanceService {
       professional.groupNames.some(group => student.groupNames.includes(group))
     );
     
-    console.log(`Mock: Encontrados ${filteredProfessionals.length} profissionais para os grupos: ${student.groupNames.join(', ')}`);
+    console.log(`Mock: Encontrados ${filteredProfessionals.length} profissionais para os grupos do estudante: ${student.groupNames.join(', ')}`);
     return filteredProfessionals;
   }
 } 
