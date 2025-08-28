@@ -47,6 +47,28 @@ export interface Coordinator {
     }[];
 }
 
+export interface StudentInfo {
+    studentName: string;
+    studentEmail: string;
+    studentPhone: string;
+    groupNames: string[];
+    organizationsAndCourses: {
+        organizationName: string;
+        courseNames: string[];
+    }[];
+}
+
+export interface CoordinatorInfo {
+    coordinatorName: string;
+    coordinatorEmail: string;
+    coordinatorPhone: string;
+    groupNames: string[];
+    organizationsAndCourses: {
+        organizationName: string;
+        courseNames: string[];
+    }[];
+}
+
 
 export const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
 
@@ -57,4 +79,6 @@ export interface VirtualAssistanceService {
     getCoordinatorDetails(cpf: string): Promise<Coordinator | null>;
     getStudentsScheduledActivities(cpf: string): Promise<ScheduledActivity[]>;
     getStudentsProfessionals(cpf: string): Promise<Professional[]>;
+    getStudentInfo(cpf: string): Promise<StudentInfo>;
+    getCoordinatorInfo(cpf: string): Promise<CoordinatorInfo>;
 } 

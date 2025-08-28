@@ -33,6 +33,16 @@ export const virtualAssistanceTools = {
     description: 'Lista os profissionais (preceptores/professores) associados a um aluno específico. Requer o CPF do aluno.',
     parameters: cpfSchema,
   }),
+  getStudentInfo: tool({
+    description: 'Obtém dados pessoais completos do estudante (nome, email, telefone, grupos, organizações). Use quando o usuário perguntar sobre "meus dados", "minhas informações", "meu perfil".',
+    parameters: cpfSchema,
+  }),
+
+  // --- Coordinator Info Tools ---
+  getCoordinatorInfo: tool({
+    description: 'Obtém dados pessoais completos do coordenador (nome, email, telefone, grupos, organizações). Use quando o usuário perguntar sobre "meus dados", "minhas informações", "meu perfil".',
+    parameters: cpfSchema,
+  }),
 
   // --- Search Tools ---
   findPersonByName: tool({
@@ -49,6 +59,7 @@ export const virtualAssistanceTools = {
     parameters: z.object({
       format: z.enum(['pdf', 'csv', 'txt']).describe('O formato do arquivo solicitado pelo usuário (pdf, csv, ou txt).'),
       cpf: z.string().describe('O CPF do usuário logado.'),
+      fieldsRequested: z.string().optional().describe('Campos específicos solicitados pelo usuário (ex: "nome e email", "apenas telefone", "nome, email e telefone"). Se não especificado, inclui todos os dados.'),
     }),
   }),
 }; 

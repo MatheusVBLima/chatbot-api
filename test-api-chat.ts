@@ -13,7 +13,8 @@ function askQuestion(query: string): Promise<string> {
 }
 
 async function startChat() {
-  console.log('--- Iniciando teste do Chat API (Dados Reais) ---');
+  console.log('--- Iniciando teste do Chat API (DADOS REAIS DE STAGING) ---');
+  console.log('🌐 Este teste conecta com a API real em api.stg.radeapp.com');
   
   console.log('\nUse um dos CPFs abaixo para conectar com a API real:');
   console.log('------------------------------------------------------------------');

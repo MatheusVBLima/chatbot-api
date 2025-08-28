@@ -5,7 +5,9 @@ import {
   ScheduledActivity, 
   Professional, 
   Student, 
-  Coordinator 
+  Coordinator,
+  StudentInfo,
+  CoordinatorInfo 
 } from '../../domain/services/virtual-assistance.service';
 import { 
   ongoingActivities, 
@@ -89,5 +91,46 @@ export class MockVirtualAssistanceService implements VirtualAssistanceService {
     
     console.log(`Mock: Encontrados ${filteredProfessionals.length} profissionais para os grupos do estudante: ${student.groupNames.join(', ')}`);
     return filteredProfessionals;
+  }
+
+  async getStudentInfo(cpf: string): Promise<StudentInfo> {
+    console.log(`Mock: Buscando informações do estudante ${cpf}.`);
+    
+    // Find student in coordinatorStudents
+    const student = coordinatorStudents.find(s => s.cpf === cpf);
+    if (!student) {
+      throw new Error(`Estudante com CPF ${cpf} não encontrado.`);
+    }
+    
+    // Convert to StudentInfo format
+    return {
+      studentName: student.name,
+      studentEmail: student.email,
+      studentPhone: student.phone || '',
+      groupNames: student.groupNames,
+      organizationsAndCourses: [
+        {
+          organizationName: 'Universidade Federal do Paraná',
+          courseNames: ['Medicina']
+        }
+      ]
+    };
+  }
+
+  async getCoordinatorInfo(cpf: string): Promise<CoordinatorInfo> {
+    console.log(`Mock: Buscando informações do coordenador ${cpf}.`);
+    
+    if (coordinatorDetails.cpf !== cpf && cpf !== '111.111.111-11') {
+      throw new Error(`Coordenador com CPF ${cpf} não encontrado.`);
+    }
+    
+    // Convert to CoordinatorInfo format
+    return {
+      coordinatorName: coordinatorDetails.coordinatorName,
+      coordinatorEmail: coordinatorDetails.coordinatorEmail,
+      coordinatorPhone: coordinatorDetails.coordinatorPhone,
+      groupNames: coordinatorDetails.groupNames,
+      organizationsAndCourses: coordinatorDetails.organizationsAndCourses
+    };
   }
 } 

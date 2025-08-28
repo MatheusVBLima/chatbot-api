@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ApiClientService, OngoingActivity, ScheduledActivity, Professional, Student, CoordinatorInfo } from './api-client.service';
+import { ApiClientService, OngoingActivity, ScheduledActivity, Professional, Student, CoordinatorInfo, StudentInfo } from './api-client.service';
 
 @Injectable()
 export class ApiVirtualAssistanceService {
@@ -39,6 +39,10 @@ export class ApiVirtualAssistanceService {
 
   async getCoordinatorInfo(cpf: string): Promise<CoordinatorInfo> {
     return this.apiClient.getCoordinatorInfo(cpf);
+  }
+
+  async getStudentInfo(cpf: string): Promise<StudentInfo> {
+    return this.apiClient.getStudentInfo(cpf);
   }
 
   async getCoordinatorDetails(cpf: string): Promise<any> {

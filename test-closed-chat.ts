@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as readline from 'readline';
 
 // The URL of your running NestJS API
-const API_URL = 'http://localhost:3001/chat/closed';
+const API_URL = 'http://localhost:3001/chat-mock/closed';
 // const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/closed';
 
 // Interface to match the structure of the API's state object
@@ -28,7 +28,8 @@ function askQuestion(query: string): Promise<string> {
  * The main loop for the interactive test chat.
  */
 async function startChat() {
-  console.log('--- Iniciando teste do Chat Fechado (Fluxo de Menu) ---');
+  console.log('--- Iniciando teste do Chat Fechado (Fluxo de Menu) com DADOS MOCK ---');
+  console.log('🔧 Este teste usa dados simulados (mock), não da API real');
   console.log('Pressione Enter para iniciar e depois siga as opções do menu.');
   console.log('Digite "sair" a qualquer momento para terminar.');
   

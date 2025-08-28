@@ -53,6 +53,7 @@ export class ChatController {
   @Post('open')
   @HttpCode(HttpStatus.OK)
   async processOpenMessage(@Body() request: OpenChatRequestDto): Promise<ChatResponseDto> {
+    console.log('[CONTROLLER] /chat/open called with:', request.userId, request.message);
     const result = await this.processOpenChatMessageUseCase.execute(request);
     
     return {

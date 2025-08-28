@@ -55,7 +55,8 @@ export class ProcessOpenChatMessageUseCase {
       // 2. Select tools based on the actor's role
       const availableTools = this.getToolsForRole(actor.role);
       
-      // 3. Let the AI service handle the tool-calling logic
+      // 3. Let the AI service handle the tool-calling logic  
+      console.log('[USE-CASE] About to call processToolCall with tools:', Object.keys(availableTools));
       const aiResponse = await this.aiService.processToolCall(actor, request.message, availableTools);
 
       return {
@@ -77,6 +78,7 @@ export class ProcessOpenChatMessageUseCase {
     const studentTools = {
       getStudentsScheduledActivities: virtualAssistanceTools.getStudentsScheduledActivities,
       getStudentsProfessionals: virtualAssistanceTools.getStudentsProfessionals,
+      getStudentInfo: virtualAssistanceTools.getStudentInfo,
     };
 
     const coordinatorTools = {
@@ -84,6 +86,7 @@ export class ProcessOpenChatMessageUseCase {
       getCoordinatorsProfessionals: virtualAssistanceTools.getCoordinatorsProfessionals,
       getCoordinatorsStudents: virtualAssistanceTools.getCoordinatorsStudents,
       getCoordinatorDetails: virtualAssistanceTools.getCoordinatorDetails,
+      getCoordinatorInfo: virtualAssistanceTools.getCoordinatorInfo,
     };
 
     // The report and search tools are available for everyone

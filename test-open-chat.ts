@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as readline from 'readline';
 
-const API_URL = 'http://localhost:3001/chat/open';
+const API_URL = 'http://localhost:3001/chat-mock/open';
 /* const API_URL = 'https://chatbot-api-32gp.onrender.com/chat/open'; */
 
 const rl = readline.createInterface({
@@ -14,7 +14,8 @@ function askQuestion(query: string): Promise<string> {
 }
 
 async function startChat() {
-  console.log('--- Iniciando teste do Chat Aberto (IA) ---');
+  console.log('--- Iniciando teste do Chat Aberto (IA) com DADOS MOCK ---');
+  console.log('🔧 Este teste usa dados simulados (mock), não da API real');
   
   console.log('\nUse um dos CPFs abaixo para simular o login de um usuário:');
   console.log('------------------------------------------------------------------');

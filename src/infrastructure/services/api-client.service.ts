@@ -38,6 +38,17 @@ export interface Student {
   groupNames: string[];
 }
 
+export interface StudentInfo {
+  studentName: string;
+  studentEmail: string;
+  studentPhone: string;
+  groupNames: string[];
+  organizationsAndCourses: {
+    organizationName: string;
+    courseNames: string[];
+  }[];
+}
+
 export interface CoordinatorInfo {
   coordinatorName: string;
   coordinatorEmail: string;
@@ -109,12 +120,16 @@ export class ApiClientService {
 
   async getStudentProfessionals(cpf: string, token?: string): Promise<Professional[]> {
     try {
+      console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/students/professionals/${cpf}`);
       const client = this.createClient(token);
       const response: AxiosResponse<Professional[]> = await client.get(
         `/virtual-assistance/students/professionals/${cpf}`
       );
+      console.log(`[API-CLIENT] Profissionais encontrados: ${response.data.length} profissionais`);
+      console.log(`[API-CLIENT] Dados dos profissionais:`, JSON.stringify(response.data, null, 2));
       return response.data;
     } catch (error) {
+      console.log(`[API-CLIENT] Erro profissionais estudante: ${error.response?.status} - ${JSON.stringify(error.response?.data) || error.message}`);
       throw new HttpException(
         `Erro ao buscar profissionais do estudante: ${error.message}`,
         HttpStatus.BAD_REQUEST
@@ -147,6 +162,24 @@ export class ApiClientService {
     } catch (error) {
       throw new HttpException(
         `Erro ao buscar estudantes do coordenador: ${error.message}`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  async getStudentInfo(cpf: string, token?: string): Promise<StudentInfo> {
+    try {
+      console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/students/${cpf}`);
+      const client = this.createClient(token);
+      const response: AxiosResponse<StudentInfo> = await client.get(
+        `/virtual-assistance/students/${cpf}`
+      );
+      console.log(`[API-CLIENT] Estudante encontrado: ${response.data.studentName}`);
+      return response.data;
+    } catch (error) {
+      console.log(`[API-CLIENT] Erro estudante individual: ${error.response?.status} - ${JSON.stringify(error.response?.data) || error.message}`);
+      throw new HttpException(
+        `Erro ao buscar informações do estudante: ${error.message}`,
         HttpStatus.BAD_REQUEST
       );
     }

@@ -1,8 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { AppMockModule } from './app-mock.module';
+import { AppApiModule } from './app-api.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Determine which module to use based on environment
+  const useApiData = process.env.USE_API_DATA === 'true';
+  const moduleToUse = useApiData ? AppApiModule : AppModule; // AppModule is the default (current mixed setup)
+  
+  console.log(`🚀 Starting application with ${useApiData ? 'REAL API DATA' : 'MOCK DATA'}`);
+  
+  const app = await NestFactory.create(moduleToUse);
 
   app.enableCors();
 

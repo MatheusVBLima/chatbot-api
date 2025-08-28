@@ -8,6 +8,7 @@ import { AIService } from '../../domain/services/ai.service';
 import { VirtualAssistanceService } from '../../domain/services/virtual-assistance.service';
 import { randomUUID } from 'crypto';
 import { CacheService } from '../../application/services/cache.service';
+import { PromptService } from './prompt.service';
 
 @Injectable()
 export class GeminiAIService implements AIService {
@@ -18,6 +19,7 @@ export class GeminiAIService implements AIService {
     private readonly configService: ConfigService,
     @Inject('VirtualAssistanceService') private readonly virtualAssistanceService: VirtualAssistanceService,
     private readonly cacheService: CacheService,
+    private readonly promptService: PromptService,
     ) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.configService.get<string>('GOOGLE_GENERATIVE_AI_API_KEY');
     this.model = google('gemini-1.5-flash-latest');
@@ -32,6 +34,7 @@ export class GeminiAIService implements AIService {
   }
   
   async processToolCall(actor: User, userMessage: string, availableTools: Record<string, CoreTool>): Promise<string> {
+    console.log('[DEBUG] processToolCall called with:', actor.cpf, userMessage);
     // Buscar histórico de conversa do cache
     const conversationKey = `conversation_${actor.cpf}`;
     const existingMessages: CoreMessage[] = this.cacheService.get(conversationKey) || [];
@@ -42,9 +45,13 @@ export class GeminiAIService implements AIService {
     // Limitar histórico para evitar contexto muito grande (últimas 10 mensagens)
     const trimmedMessages = messages.slice(-10);
 
+    // Debug: Log available tools
+    console.log('[AI] Available tools:', Object.keys(availableTools));
+    console.log('[AI] System prompt preview:', this.promptService.getSystemPrompt(actor).substring(0, 200) + '...');
+    
     const result = await streamText({
       model: this.model,
-      system: this.getToolCallSystemPrompt(actor),
+      system: this.promptService.getSystemPrompt(actor),
       messages: trimmedMessages,
       tools: availableTools,
     });
@@ -92,7 +99,7 @@ export class GeminiAIService implements AIService {
       try {
         const finalResult = await streamText({
           model: this.model,
-          system: this.getToolCallSystemPrompt(actor),
+          system: this.promptService.getSystemPrompt(actor),
           messages: trimmedMessages,
         });
         for await (const part of finalResult.fullStream) {
@@ -251,38 +258,56 @@ export class GeminiAIService implements AIService {
     return `lastResult_${cpf}`;
   }
 
-  // Cache para mapeamento nome → CPF
-  private getNameToCpfCacheKey(actorCpf: string): string {
-    return `nameMap_${actorCpf}`;
-  }
-
-  private cacheStudentNameMapping(actorCpf: string, students: any[]): void {
-    const existingNameMap = this.cacheService.get(this.getNameToCpfCacheKey(actorCpf)) || {};
-    students.forEach(student => {
-      if (student.name && student.cpf) {
-        existingNameMap[student.name.toLowerCase()] = student.cpf;
+  private filterDataByFields(data: any, fieldsRequested: string): any {
+    if (!data) return data;
+    
+    // Mapear campos solicitados para campos dos dados
+    const fieldMapping: { [key: string]: string[] } = {
+      'nome': ['studentName', 'coordinatorName', 'name'],
+      'email': ['studentEmail', 'coordinatorEmail', 'email'],
+      'telefone': ['studentPhone', 'coordinatorPhone', 'phone'],
+      'grupos': ['groupNames'],
+      'instituição': ['organizationsAndCourses'],
+      'cursos': ['organizationsAndCourses'],
+    };
+    
+    // Extrair campos solicitados da string
+    const requestedLower = fieldsRequested.toLowerCase();
+    const fieldsToInclude = new Set<string>();
+    
+    Object.entries(fieldMapping).forEach(([keyword, fields]) => {
+      if (requestedLower.includes(keyword)) {
+        fields.forEach(field => fieldsToInclude.add(field));
       }
     });
-    this.cacheService.set(this.getNameToCpfCacheKey(actorCpf), existingNameMap, 3600000); // Cache por 1 hora
-  }
-
-  private cacheProfessionalNameMapping(actorCpf: string, professionals: any[]): void {
-    const existingNameMap = this.cacheService.get(this.getNameToCpfCacheKey(actorCpf)) || {};
-    professionals.forEach(professional => {
-      if (professional.name && professional.cpf) {
-        existingNameMap[professional.name.toLowerCase()] = professional.cpf;
-      }
-    });
-    this.cacheService.set(this.getNameToCpfCacheKey(actorCpf), existingNameMap, 3600000); // Cache por 1 hora
-  }
-
-  private findCpfByName(actorCpf: string, name: string): string | null {
-    const nameMap = this.cacheService.get(this.getNameToCpfCacheKey(actorCpf));
-    if (nameMap) {
-      return nameMap[name.toLowerCase()] || null;
+    
+    // Se não conseguir mapear campos, retornar dados originais
+    if (fieldsToInclude.size === 0) {
+      return data;
     }
-    return null;
+    
+    // Filtrar dados
+    if (Array.isArray(data)) {
+      return data.map(item => this.filterSingleItem(item, fieldsToInclude));
+    } else {
+      return this.filterSingleItem(data, fieldsToInclude);
+    }
   }
+  
+  private filterSingleItem(item: any, fieldsToInclude: Set<string>): any {
+    const filteredItem: any = {};
+    
+    fieldsToInclude.forEach(field => {
+      if (item.hasOwnProperty(field)) {
+        filteredItem[field] = item[field];
+      }
+    });
+    
+    return filteredItem;
+  }
+
+
+
 
   // This method maps the AI's tool choice to our actual service methods.
   private async executeTool(toolCall: any): Promise<any> {
@@ -296,15 +321,11 @@ export class GeminiAIService implements AIService {
         return result;
       case 'getCoordinatorsProfessionals':
         result = await this.virtualAssistanceService.getCoordinatorsProfessionals(args.cpf);
-        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
-        // Cache mapeamento nome → CPF para profissionais
-        this.cacheProfessionalNameMapping(args.cpf, result);
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
       case 'getCoordinatorsStudents':
         result = await this.virtualAssistanceService.getCoordinatorsStudents(args.cpf);
-        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
-        // Cache mapeamento nome → CPF para buscas futuras
-        this.cacheStudentNameMapping(args.cpf, result);
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
       case 'getCoordinatorDetails':
         result = await this.virtualAssistanceService.getCoordinatorDetails(args.cpf);
@@ -316,89 +337,79 @@ export class GeminiAIService implements AIService {
         return result;
       case 'getStudentsProfessionals':
         result = await this.virtualAssistanceService.getStudentsProfessionals(args.cpf);
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
+        return result;
+        
+      case 'getStudentInfo':
+        result = await this.virtualAssistanceService.getStudentInfo(args.cpf);
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
+        return result;
+      case 'getCoordinatorInfo':
+        result = await this.virtualAssistanceService.getCoordinatorInfo(args.cpf);
         this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
         return result;
       
       case 'findPersonByName':
-        // Buscar pessoa específica por nome em TODOS os endpoints possíveis
         const { name: searchName, cpf: searcherCpf } = args;
         let foundPerson: any = null;
         
-        // Lista de todos os endpoints que retornam pessoas
-        const searchEndpoints = [
-          {
-            name: 'Estudantes (coordenador)',
-            call: () => this.virtualAssistanceService.getCoordinatorsStudents(searcherCpf),
-            cache: (data: any[]) => this.cacheStudentNameMapping(searcherCpf, data)
-          },
-          {
-            name: 'Profissionais (coordenador)', 
-            call: () => this.virtualAssistanceService.getCoordinatorsProfessionals(searcherCpf),
-            cache: (data: any[]) => this.cacheProfessionalNameMapping(searcherCpf, data)
-          },
-          {
-            name: 'Profissionais (estudante)', 
-            call: () => this.virtualAssistanceService.getStudentsProfessionals(searcherCpf),
-            cache: (data: any[]) => this.cacheProfessionalNameMapping(searcherCpf, data)
-          }
-        ];
-        
-        // Buscar em todos os endpoints até encontrar a pessoa
-        for (const endpoint of searchEndpoints) {
-          if (foundPerson) break; // Se já encontrou, para
-          
-          try {
-            console.log(`findPersonByName: Buscando "${searchName}" em ${endpoint.name}`);
-            const people = await endpoint.call();
-            endpoint.cache(people);
-            
-            foundPerson = people.find(person => 
-              person.name.toLowerCase().includes(searchName.toLowerCase())
-            );
-            
-            if (foundPerson) {
-              console.log(`findPersonByName: Encontrado em ${endpoint.name}:`, foundPerson.name);
-            }
-          } catch (error) {
-            console.log(`Erro ao buscar em ${endpoint.name}:`, error);
-          }
+        // Buscar em profissionais primeiro (mais comum)
+        try {
+          const professionals = await this.virtualAssistanceService.getStudentsProfessionals(searcherCpf);
+          foundPerson = professionals.find(person => 
+            person.name.toLowerCase().includes(searchName.toLowerCase())
+          );
+        } catch (error) {
+          console.log('Erro ao buscar em profissionais:', error);
         }
         
         if (foundPerson) {
-          // Cachear apenas os dados da pessoa encontrada para o relatório
           this.cacheService.set(this.getLastResultCacheKey(searcherCpf), [foundPerson], 3600000);
           return foundPerson;
         } else {
-          return { error: `Pessoa com nome "${searchName}" não encontrada em nenhum endpoint.` };
+          return { error: `Pessoa com nome "${searchName}" não encontrada.` };
         }
 
       case 'generateReport':
-        // The user's CPF is passed implicitly by the AI based on our prompt.
         const lastData = this.cacheService.get(this.getLastResultCacheKey(args.cpf));
+        
         if (!lastData) {
-          return { error: 'Não encontrei dados recentes para gerar um relatório. Por favor, faça uma busca primeiro.' };
+          return { error: 'Não encontrei dados para gerar um relatório. Por favor, faça uma busca primeiro.' };
         }
         
-        const { format } = args;
+        const { format, fieldsRequested } = args;
+        
+        // Filtrar dados se campos específicos foram solicitados
+        let dataToReport = lastData;
+        if (fieldsRequested) {
+          dataToReport = this.filterDataByFields(lastData, fieldsRequested);
+        }
         
         // Determinar título baseado no tipo de dados
-        let title = 'Dados';
-        if (Array.isArray(lastData) && lastData.length > 0) {
-          if (lastData[0].studentName && lastData[0].taskName) {
+        let title = fieldsRequested ? `Dados Solicitados` : 'Dados';
+        if (Array.isArray(dataToReport) && dataToReport.length > 0) {
+          if (dataToReport[0].studentName && dataToReport[0].taskName) {
             title = 'Atividades em Andamento';
-          } else if (lastData[0].taskName && lastData[0].preceptorNames) {
+          } else if (dataToReport[0].taskName && dataToReport[0].preceptorNames) {
             title = 'Atividades Agendadas';
-          } else if (lastData[0].name && lastData[0].email) {
-            if (lastData[0].groupNames) {
+          } else if (dataToReport[0].name && dataToReport[0].email) {
+            if (dataToReport[0].groupNames) {
               title = 'Lista de Profissionais';
             } else {
               title = 'Lista de Estudantes';
             }
           }
+        } else if (dataToReport && typeof dataToReport === 'object' && !Array.isArray(dataToReport)) {
+          // Dados de estudante individual
+          if (dataToReport.studentName || dataToReport.name) {
+            title = fieldsRequested ? `Dados do Estudante - ${fieldsRequested}` : 'Dados do Estudante';
+          } else if (dataToReport.coordinatorName) {
+            title = fieldsRequested ? `Dados do Coordenador - ${fieldsRequested}` : 'Dados do Coordenador';
+          }
         }
         
         const cacheId = randomUUID();
-        this.cacheService.set(cacheId, { data: lastData, title }); // Salvar com título
+        this.cacheService.set(cacheId, { data: dataToReport, title });
         const downloadUrl = `${this.apiBaseUrl}/reports/from-cache/${cacheId}/${format}`;
         return { downloadUrl };
 
@@ -407,70 +418,5 @@ export class GeminiAIService implements AIService {
     }
   }
 
-  private getToolCallSystemPrompt(actor: User): string {
-    return `
-      Você é um assistente virtual inteligente para a plataforma Ad-Astra.
-      Usuário logado: ${actor.name} (CPF: ${actor.cpf}, Perfil: ${actor.role}).
-
-      📊 ENDPOINTS DISPONÍVEIS E SEUS FORMATOS:
-
-      🔒 APENAS COORDENADORES:
-      • getCoordinatorsOngoingActivities(cpf_coordenador)
-        Retorna: [{studentName, groupName, taskName, internshipLocationName, preceptorName, startedAt, scheduledEndTo, ...}]
-        
-      • getCoordinatorsProfessionals(cpf_coordenador)  
-        Retorna: [{name, cpf, email, phone, groupNames, pendingValidationWorkloadMinutes, ...}]
-        
-      • getCoordinatorsStudents(cpf_coordenador)
-        Retorna: [{name, cpf, email, phone, groupNames, ...}]
-        
-      • getCoordinatorDetails(cpf_coordenador)
-        Retorna: {coordinatorName, coordinatorEmail, coordinatorPhone, groupNames, organizationsAndCourses, ...}
-
-      👥 QUALQUER USUÁRIO (incluindo coordenadores):
-      • getStudentsScheduledActivities(cpf_estudante)
-        Retorna: [{groupName, taskName, internshipLocationName, scheduledStartTo, scheduledEndTo, preceptorNames, ...}]
-        
-      • getStudentsProfessionals(cpf_estudante)
-        Retorna: [{name, cpf, email, phone, groupNames, ...}]
-        ⚠️ IMPORTANTE: Coordenadores podem usar este endpoint! Aqui estão os PRECEPTORES/PROFISSIONAIS que trabalham com estudantes.
-
-      🔧 FERRAMENTAS AUXILIARES:
-      • findPersonByName(name, cpf_usuario_logado)
-        Busca pessoa por nome em TODOS os endpoints disponíveis. Sempre funciona para coordenadores.
-        
-      • generateReport(format, cpf_usuario_logado)
-        Gera relatório dos últimos dados buscados. Formatos: pdf, csv, txt.
-
-      🎯 COMO USAR SUA INTELIGÊNCIA:
-
-      1. **PERMISSÕES**: 
-         - ESTUDANTES: só endpoints "QUALQUER USUÁRIO"
-         - COORDENADORES: TODOS os endpoints (inclusive getStudentsProfessionals!)
-
-      2. **BUSCAR PESSOAS (MUITO IMPORTANTE)**:
-         - Use findPersonByName que busca em TODOS os endpoints automaticamente
-         - PRECEPTORES/DOUTORES estão em getStudentsProfessionals, não em getCoordinatorsProfessionals
-         - Coordenadores têm acesso completo a todos os dados
-
-      3. **COMBINAR DADOS E SER PROATIVO**: Use sua inteligência para combinar informações de diferentes endpoints.
-         - Exemplo: atividades em andamento → identificar preceptor → buscar dados do preceptor
-         - **IMPORTANTE**: Se o usuário perguntar sobre preceptores/profissionais de um GRUPO, busque em getStudentsProfessionals e filtre por groupNames
-         - Não seja conservador - se tem acesso aos dados, use-os para dar respostas completas
-         - Exemplo: "preceptores do Grupo 2" → getStudentsProfessionals → filtrar por groupNames contendo "Grupo 2"
-
-      4. **RELATÓRIOS**: Para gerar relatórios de terceiros, PRIMEIRO use findPersonByName para encontrar a pessoa, DEPOIS chame generateReport.
-
-      5. **CPF PADRÃO**: Use sempre o CPF do usuário logado (${actor.cpf}) nos endpoints.
-
-      6. **CONTEXTO**: Use o histórico da conversa para entender referências como "essa pessoa", "dados anteriores", etc.
-
-      Seja inteligente, proativo e confiante! Use os dados disponíveis para dar respostas completas.
-      
-      **EXEMPLO DE BUSCA POR GRUPO:**
-      Usuário: "Quais os preceptores do Grupo 2?"
-      Ação: getStudentsProfessionals(cpf_coordenador) → filtrar todos com groupNames contendo "Grupo 2" → listar os nomes
-    `;
-  }
   
 } 

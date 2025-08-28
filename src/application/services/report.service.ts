@@ -71,7 +71,7 @@ export class ReportService {
           formatted += `   Horas pendentes: ${item.pendingValidationWorkloadMinutes} min\n`;
         }
       }
-      // Estudantes
+      // Estudantes (com groupNames)
       else if (item.name && item.groupNames) {
         formatted += `${item.name}\n`;
         formatted += `   CPF: ${item.cpf}\n`;
@@ -79,11 +79,57 @@ export class ReportService {
         if (item.phone) formatted += `   Telefone: ${item.phone}\n`;
         formatted += `   Grupos: ${item.groupNames.join(', ')}\n`;
       }
-      // Dados genéricos
+      // Dados de estudante individual (formato API staging)
+      else if (item.studentName || item.studentEmail) {
+        formatted += `${item.studentName || 'Estudante'}\n`;
+        if (item.studentEmail) formatted += `   Email: ${item.studentEmail}\n`;
+        if (item.studentPhone) formatted += `   Telefone: ${item.studentPhone}\n`;
+        if (item.groupNames) formatted += `   Grupos: ${Array.isArray(item.groupNames) ? item.groupNames.join(', ') : item.groupNames}\n`;
+        if (item.organizationsAndCourses) {
+          const orgs = Array.isArray(item.organizationsAndCourses) ? item.organizationsAndCourses : [item.organizationsAndCourses];
+          orgs.forEach(org => {
+            if (org.organizationName) formatted += `   Instituição: ${org.organizationName}\n`;
+            if (org.courseNames) formatted += `   Cursos: ${Array.isArray(org.courseNames) ? org.courseNames.join(', ') : org.courseNames}\n`;
+          });
+        }
+      }
+      // Dados de coordenador individual
+      else if (item.coordinatorName || item.coordinatorEmail) {
+        formatted += `${item.coordinatorName || 'Coordenador'}\n`;
+        if (item.coordinatorEmail) formatted += `   Email: ${item.coordinatorEmail}\n`;
+        if (item.coordinatorPhone) formatted += `   Telefone: ${item.coordinatorPhone}\n`;
+        if (item.groupNames) formatted += `   Grupos: ${Array.isArray(item.groupNames) ? item.groupNames.join(', ') : item.groupNames}\n`;
+        if (item.organizationsAndCourses) {
+          const orgs = Array.isArray(item.organizationsAndCourses) ? item.organizationsAndCourses : [item.organizationsAndCourses];
+          orgs.forEach(org => {
+            if (org.organizationName) formatted += `   Instituição: ${org.organizationName}\n`;
+            if (org.courseNames) formatted += `   Cursos: ${Array.isArray(org.courseNames) ? org.courseNames.join(', ') : org.courseNames}\n`;
+          });
+        }
+      }
+      // Dados genéricos (fallback)
       else {
         formatted += `Registro ${index + 1}\n`;
         Object.entries(item).forEach(([key, value]) => {
-          formatted += `   ${key}: ${value}\n`;
+          // Melhorar a apresentação das chaves
+          let friendlyKey = key;
+          switch(key) {
+            case 'studentName': friendlyKey = 'Nome'; break;
+            case 'studentEmail': friendlyKey = 'Email'; break;
+            case 'studentPhone': friendlyKey = 'Telefone'; break;
+            case 'coordinatorName': friendlyKey = 'Nome'; break;
+            case 'coordinatorEmail': friendlyKey = 'Email'; break;
+            case 'coordinatorPhone': friendlyKey = 'Telefone'; break;
+            case 'groupNames': friendlyKey = 'Grupos'; break;
+            case 'organizationsAndCourses': friendlyKey = 'Instituições e Cursos'; break;
+            default: friendlyKey = key;
+          }
+          
+          if (typeof value === 'object' && value !== null) {
+            formatted += `   ${friendlyKey}: ${JSON.stringify(value)}\n`;
+          } else {
+            formatted += `   ${friendlyKey}: ${value}\n`;
+          }
         });
       }
       
@@ -133,6 +179,28 @@ export class ReportService {
         csvItem['Hora_Inicio'] = new Date(item.scheduledStartTo).toLocaleTimeString('pt-BR');
         csvItem['Hora_Fim'] = new Date(item.scheduledEndTo).toLocaleTimeString('pt-BR');
         csvItem['Preceptores'] = item.preceptorNames.join(', ');
+      } else if (item.studentName || item.studentEmail) {
+        // Dados de estudante individual
+        csvItem['Nome'] = item.studentName;
+        csvItem['Email'] = item.studentEmail;
+        csvItem['Telefone'] = item.studentPhone;
+        if (item.groupNames) csvItem['Grupos'] = Array.isArray(item.groupNames) ? item.groupNames.join(', ') : item.groupNames;
+        if (item.organizationsAndCourses) {
+          const orgs = Array.isArray(item.organizationsAndCourses) ? item.organizationsAndCourses : [item.organizationsAndCourses];
+          csvItem['Instituições'] = orgs.map(org => org.organizationName).filter(Boolean).join(', ');
+          csvItem['Cursos'] = orgs.map(org => Array.isArray(org.courseNames) ? org.courseNames.join(', ') : org.courseNames).filter(Boolean).join(', ');
+        }
+      } else if (item.coordinatorName || item.coordinatorEmail) {
+        // Dados de coordenador individual
+        csvItem['Nome'] = item.coordinatorName;
+        csvItem['Email'] = item.coordinatorEmail;
+        csvItem['Telefone'] = item.coordinatorPhone;
+        if (item.groupNames) csvItem['Grupos'] = Array.isArray(item.groupNames) ? item.groupNames.join(', ') : item.groupNames;
+        if (item.organizationsAndCourses) {
+          const orgs = Array.isArray(item.organizationsAndCourses) ? item.organizationsAndCourses : [item.organizationsAndCourses];
+          csvItem['Instituições'] = orgs.map(org => org.organizationName).filter(Boolean).join(', ');
+          csvItem['Cursos'] = orgs.map(org => Array.isArray(org.courseNames) ? org.courseNames.join(', ') : org.courseNames).filter(Boolean).join(', ');
+        }
       } else {
         // Dados genéricos
         Object.entries(item).forEach(([key, value]) => {
