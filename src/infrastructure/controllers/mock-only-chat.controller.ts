@@ -1,4 +1,5 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ProcessOpenChatMessageUseCase } from '../../application/use-cases/process-open-chat-message.use-case';
 import { ProcessClosedChatMessageUseCase } from '../../application/use-cases/process-closed-chat-message.use-case';
 import { MockVirtualAssistanceService } from '../services/mock-virtual-assistance.service';
@@ -14,7 +15,7 @@ export class MockOpenChatRequestDto {
   userId?: string;
   phone?: string;
   email?: string;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
 }
 
 export class MockClosedChatRequestDto {
@@ -22,7 +23,7 @@ export class MockClosedChatRequestDto {
   userId?: string;
   phone?: string;
   email?: string;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
   currentState?: any;
 }
 
@@ -46,9 +47,17 @@ export class MockOnlyChatController {
       mockPromptService
     );
 
+    const mockConfigService = {
+      get: (key: string, defaultValue?: string) => {
+        if (key === 'REPORTS_ENABLED') return 'false';
+        return defaultValue || process.env[key];
+      }
+    } as ConfigService;
+
     this.mockOpenChatUseCase = new ProcessOpenChatMessageUseCase(
       mockUserRepo,
-      mockAIService
+      mockAIService,
+      mockConfigService
     );
 
     this.mockClosedChatUseCase = new ProcessClosedChatMessageUseCase(

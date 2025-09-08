@@ -1,5 +1,6 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { RadeAuthService } from './rade-auth.service';
 
 export interface OngoingActivity {
   studentName: string;
@@ -62,18 +63,21 @@ export interface CoordinatorInfo {
 
 @Injectable()
 export class ApiClientService {
-  private readonly baseURL = 'https://api.stg.radeapp.com';
-  private readonly stagingToken = 'JQiFrDkkM5eNKtLxwNKzZoga0xkeRDAZ';
+  private readonly baseURL: string;
 
-  constructor() {}
+  constructor(private readonly radeAuthService: RadeAuthService) {
+    this.baseURL = process.env.NODE_ENV === 'production' 
+      ? process.env.RADE_API_BASE_URL || 'https://api.radeapp.com'
+      : 'https://api.stg.radeapp.com';
+  }
 
-  private createClient(token?: string): AxiosInstance {
+  private async createClient(): Promise<AxiosInstance> {
     const headers: any = {
       'Content-Type': 'application/json',
     };
 
-    // Use staging token (without Bearer prefix as discovered in tests)
-    const authToken = token || this.stagingToken;
+    // Get dynamic token from auth service
+    const authToken = await this.radeAuthService.getValidToken();
     if (authToken) {
       headers['Authorization'] = authToken;
     }
@@ -85,9 +89,9 @@ export class ApiClientService {
     });
   }
 
-  async getCoordinatorOngoingActivities(cpf: string, token?: string): Promise<OngoingActivity[]> {
+  async getCoordinatorOngoingActivities(cpf: string): Promise<OngoingActivity[]> {
     try {
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<OngoingActivity[]> = await client.get(
         `/virtual-assistance/coordinators/ongoing-activities/${cpf}`
       );
@@ -100,10 +104,10 @@ export class ApiClientService {
     }
   }
 
-  async getStudentScheduledActivities(cpf: string, token?: string): Promise<ScheduledActivity[]> {
+  async getStudentScheduledActivities(cpf: string): Promise<ScheduledActivity[]> {
     try {
       console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/students/scheduled-activities/${cpf}`);
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<ScheduledActivity[]> = await client.get(
         `/virtual-assistance/students/scheduled-activities/${cpf}`
       );
@@ -118,10 +122,10 @@ export class ApiClientService {
     }
   }
 
-  async getStudentProfessionals(cpf: string, token?: string): Promise<Professional[]> {
+  async getStudentProfessionals(cpf: string): Promise<Professional[]> {
     try {
       console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/students/professionals/${cpf}`);
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<Professional[]> = await client.get(
         `/virtual-assistance/students/professionals/${cpf}`
       );
@@ -137,9 +141,9 @@ export class ApiClientService {
     }
   }
 
-  async getCoordinatorProfessionals(cpf: string, token?: string): Promise<Professional[]> {
+  async getCoordinatorProfessionals(cpf: string): Promise<Professional[]> {
     try {
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<Professional[]> = await client.get(
         `/virtual-assistance/coordinators/professionals/${cpf}`
       );
@@ -152,9 +156,9 @@ export class ApiClientService {
     }
   }
 
-  async getCoordinatorStudents(cpf: string, token?: string): Promise<Student[]> {
+  async getCoordinatorStudents(cpf: string): Promise<Student[]> {
     try {
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<Student[]> = await client.get(
         `/virtual-assistance/coordinators/students/${cpf}`
       );
@@ -167,10 +171,10 @@ export class ApiClientService {
     }
   }
 
-  async getStudentInfo(cpf: string, token?: string): Promise<StudentInfo> {
+  async getStudentInfo(cpf: string): Promise<StudentInfo> {
     try {
       console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/students/${cpf}`);
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<StudentInfo> = await client.get(
         `/virtual-assistance/students/${cpf}`
       );
@@ -185,10 +189,10 @@ export class ApiClientService {
     }
   }
 
-  async getCoordinatorInfo(cpf: string, token?: string): Promise<CoordinatorInfo> {
+  async getCoordinatorInfo(cpf: string): Promise<CoordinatorInfo> {
     try {
       console.log(`[API-CLIENT] GET ${this.baseURL}/virtual-assistance/coordinators/${cpf}`);
-      const client = this.createClient(token);
+      const client = await this.createClient();
       const response: AxiosResponse<CoordinatorInfo> = await client.get(
         `/virtual-assistance/coordinators/${cpf}`
       );

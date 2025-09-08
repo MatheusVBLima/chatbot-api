@@ -68,6 +68,12 @@ export class GeminiAIService implements AIService {
           toolCalls.push(part);
         } else if (part.type === 'error') {
           console.error(`Stream error:`, part.error);
+          
+          // Handle any unavailable tool error with standardized message
+          if ((part.error as any)?.name === 'AI_NoSuchToolError') {
+            return 'Desculpe, não posso te ajudar com essa questão. Posso ajudá-lo com informações sobre seus dados acadêmicos, atividades ou preceptores da plataforma RADE.';
+          }
+          
           throw new Error(`Stream error: ${JSON.stringify(part.error)}`);
         }
       }

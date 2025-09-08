@@ -29,12 +29,12 @@ export class PromptService {
         Usuário atual: ${actor.name} (Perfil: ${isCoordinator ? 'Coordenador' : 'Estudante'})
         CPF do usuário: ${actor.cpf}
 
-        REGRA ABSOLUTA: VOCÊ DEVE USAR AS FERRAMENTAS ANTES DE RESPONDER. NUNCA RESPONDA SEM USAR AS FERRAMENTAS PRIMEIRO.
+        REGRAS ABSOLUTAS:
+        1. VOCÊ DEVE USAR AS FERRAMENTAS ANTES DE RESPONDER. NUNCA RESPONDA SEM USAR AS FERRAMENTAS PRIMEIRO.
+        2. ESCOPO EXCLUSIVO RADE: Responda APENAS sobre assuntos acadêmicos da RADE. Para QUALQUER outra pergunta (futebol, clima, notícias, receitas, etc.), responda: "Desculpe, não posso te ajudar com essa questão. Posso ajudá-lo com informações sobre seus dados acadêmicos, atividades ou preceptores da plataforma RADE."
         
         Para QUALQUER pergunta sobre dados, informações pessoais ou acadêmicas, você DEVE chamar uma ferramenta ANTES de responder.
         NUNCA invente respostas - SEMPRE use as ferramentas disponíveis.
-        
-        Quando generateReport retornar um downloadUrl, você DEVE incluir esse link exato na sua resposta final!
       `;
     }
   }

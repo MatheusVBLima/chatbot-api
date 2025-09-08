@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { UserRepository } from '../../domain/repositories/user.repository';
 import { AIService } from '../../domain/services/ai.service';
 import { User } from '../../domain/entities/user.entity';
-import { virtualAssistanceTools } from './ai-tools';
+import { getVirtualAssistanceTools } from './ai-tools';
 import { CoreTool } from 'ai';
 
 export interface ProcessOpenChatMessageRequest {
@@ -11,7 +11,7 @@ export interface ProcessOpenChatMessageRequest {
   userId?: string;
   phone?: string;
   email?: string;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
 }
 
 export interface ProcessOpenChatMessageResponse {
@@ -26,6 +26,7 @@ export class ProcessOpenChatMessageUseCase {
   constructor(
     @Inject('UserRepository') private readonly userRepository: UserRepository,
     @Inject('AIService') private readonly aiService: AIService,
+    private readonly configService: ConfigService,
   ) {}
 
   async execute(request: ProcessOpenChatMessageRequest): Promise<ProcessOpenChatMessageResponse> {
@@ -75,25 +76,31 @@ export class ProcessOpenChatMessageUseCase {
   }
 
   private getToolsForRole(role: 'student' | 'coordinator'): Record<string, CoreTool> {
+    const tools = getVirtualAssistanceTools(this.configService);
+    
     const studentTools = {
-      getStudentsScheduledActivities: virtualAssistanceTools.getStudentsScheduledActivities,
-      getStudentsProfessionals: virtualAssistanceTools.getStudentsProfessionals,
-      getStudentInfo: virtualAssistanceTools.getStudentInfo,
+      getStudentsScheduledActivities: tools.getStudentsScheduledActivities,
+      getStudentsProfessionals: tools.getStudentsProfessionals,
+      getStudentInfo: tools.getStudentInfo,
     };
 
     const coordinatorTools = {
-      getCoordinatorsOngoingActivities: virtualAssistanceTools.getCoordinatorsOngoingActivities,
-      getCoordinatorsProfessionals: virtualAssistanceTools.getCoordinatorsProfessionals,
-      getCoordinatorsStudents: virtualAssistanceTools.getCoordinatorsStudents,
-      getCoordinatorDetails: virtualAssistanceTools.getCoordinatorDetails,
-      getCoordinatorInfo: virtualAssistanceTools.getCoordinatorInfo,
+      getCoordinatorsOngoingActivities: tools.getCoordinatorsOngoingActivities,
+      getCoordinatorsProfessionals: tools.getCoordinatorsProfessionals,
+      getCoordinatorsStudents: tools.getCoordinatorsStudents,
+      getCoordinatorDetails: tools.getCoordinatorDetails,
+      getCoordinatorInfo: tools.getCoordinatorInfo,
     };
 
-    // The report and search tools are available for everyone
+    // Common tools available for everyone
     const commonTools = {
-      generateReport: virtualAssistanceTools.generateReport,
-      findPersonByName: virtualAssistanceTools.findPersonByName,
+      findPersonByName: tools.findPersonByName,
     };
+
+    // Add generateReport only if enabled
+    if ((tools as any).generateReport) {
+      (commonTools as any).generateReport = (tools as any).generateReport;
+    }
 
     if (role === 'coordinator') {
       // Coordinators can also use student tools to look up specific students
