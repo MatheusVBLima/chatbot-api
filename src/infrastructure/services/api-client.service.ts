@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { RadeAuthService } from './rade-auth.service';
 
@@ -63,6 +63,7 @@ export interface CoordinatorInfo {
 
 @Injectable()
 export class ApiClientService {
+  private readonly logger = new Logger(ApiClientService.name);
   private readonly baseURL: string;
 
   constructor(private readonly radeAuthService: RadeAuthService) {
@@ -79,7 +80,9 @@ export class ApiClientService {
     // Get dynamic token from auth service
     const authToken = await this.radeAuthService.getValidToken();
     if (authToken) {
+      // RADE API uses token directly, not Bearer prefix
       headers['Authorization'] = authToken;
+      this.logger.debug(`Using auth token: ${authToken.substring(0, 10)}...`);
     }
 
     return axios.create({

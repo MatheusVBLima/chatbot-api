@@ -3,6 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChatController } from './infrastructure/controllers/chat.controller';
+import { HybridChatController } from './infrastructure/controllers/hybrid-chat.controller';
+import { MasterChatController } from './infrastructure/controllers/master-chat.controller';
+import { DebugController } from './infrastructure/controllers/debug.controller';
 import { ReportController } from './infrastructure/controllers/report.controller';
 import { MockOnlyChatController } from './infrastructure/controllers/mock-only-chat.controller';
 import { ProcessOpenChatMessageUseCase } from './application/use-cases/process-open-chat-message.use-case';
@@ -30,12 +33,16 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env.local',
+        '.env',
+      ],
     }),
     HealthModule,
     ZapiModule,
   ],
-  controllers: [AppController, ChatController, ReportController, MockOnlyChatController],
+  controllers: [AppController, ChatController, HybridChatController, MasterChatController, DebugController, ReportController, MockOnlyChatController],
   providers: [
     AppService,
     ProcessOpenChatMessageUseCase,
