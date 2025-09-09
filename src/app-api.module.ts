@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChatController } from './infrastructure/controllers/chat.controller';
+import { HybridChatController } from './infrastructure/controllers/hybrid-chat.controller';
 import { ReportController } from './infrastructure/controllers/report.controller';
 import { ProcessOpenChatMessageUseCase } from './application/use-cases/process-open-chat-message.use-case';
 import { ProcessClosedChatMessageUseCase } from './application/use-cases/process-closed-chat-message.use-case';
@@ -25,10 +26,14 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env.local',
+        '.env',
+      ],
     }),
   ],
-  controllers: [AppController, ChatController, ReportController],
+  controllers: [AppController, ChatController, HybridChatController, ReportController],
   providers: [
     AppService,
     ProcessOpenChatMessageUseCase,
