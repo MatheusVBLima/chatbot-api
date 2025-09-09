@@ -13,14 +13,24 @@ async function bootstrap() {
   const app = await NestFactory.create(moduleToUse);
 
   // Configure CORS to allow front-end access
-  const corsOrigins = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',')
-    : [
-        'http://localhost:3000', // Next.js dev server
-        'http://localhost:3001', // API localhost
-        /^https:\/\/.*\.vercel\.app$/, // All Vercel deployments
-        /^https:\/\/.*\.render\.com$/, // Render deployments
-      ];
+  const corsOrigin = process.env.CORS_ORIGIN;
+  let corsOrigins;
+  
+  if (corsOrigin === '*') {
+    // Allow all origins
+    corsOrigins = true;
+  } else if (corsOrigin) {
+    // Split comma-separated origins
+    corsOrigins = corsOrigin.split(',').map(origin => origin.trim());
+  } else {
+    // Default origins
+    corsOrigins = [
+      'http://localhost:3000', // Next.js dev server
+      'http://localhost:3001', // API localhost
+      /^https:\/\/.*\.vercel\.app$/, // All Vercel deployments
+      /^https:\/\/.*\.render\.com$/, // Render deployments
+    ];
+  }
 
   app.enableCors({
     origin: corsOrigins,
