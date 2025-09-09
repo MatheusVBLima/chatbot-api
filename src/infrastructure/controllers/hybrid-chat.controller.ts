@@ -108,9 +108,6 @@ export class HybridChatController {
       case HybridChatFlowState.AWAITING_NEW_USER_DETAILS:
         return this.handleNewUserDetails(message, state!);
 
-      case HybridChatFlowState.AWAITING_AI_CPF:
-        return this.handleAiCpfResponse(message, state!);
-
       case HybridChatFlowState.AWAITING_AI_PHONE:
         return await this.handleAiPhoneResponse(message, state!);
 
@@ -186,14 +183,14 @@ export class HybridChatController {
     const cpf = message.trim();
     
     // For now, just show menu (in real app would validate via API)
-    return this.showStudentMenu({ ...state.data, studentCpf: cpf });
+    return this.showStudentMenu({ ...state.data, studentCpf: cpf, cpf: cpf });
   }
 
   private async handleCoordinatorCpfResponse(message: string, state: HybridChatState): Promise<{ response: string; nextState: HybridChatState }> {
     const cpf = message.trim();
     
     // For now, just show menu (in real app would validate via API)
-    return this.showCoordinatorMenu({ ...state.data, coordinatorCpf: cpf });
+    return this.showCoordinatorMenu({ ...state.data, coordinatorCpf: cpf, cpf: cpf });
   }
 
   private handleStudentMenuChoice(message: string, state: HybridChatState): { response: string; nextState: HybridChatState } {
@@ -224,11 +221,11 @@ O vídeo foi suficiente ou posso ajudar com algo mais?
     }
 
     if (choice === '7') {
-      // AI option for student
+      // AI option for student - usar CPF já informado
       return {
-        response: 'Para conversar com o Atendente Virtual, informe seu CPF (apenas números):',
+        response: 'Agora, informe seu número de telefone (com DDD):\n\nOu digite "voltar" para retornar ao menu anterior.',
         nextState: {
-          currentState: HybridChatFlowState.AWAITING_AI_CPF,
+          currentState: HybridChatFlowState.AWAITING_AI_PHONE,
           data: { ...state.data, userType: 'student' },
         },
       };
@@ -301,11 +298,11 @@ O vídeo foi útil ou você precisa de mais alguma ajuda?
     }
 
     if (choice === '5') {
-      // AI option for coordinator
+      // AI option for coordinator - usar CPF já informado
       return {
-        response: 'Para conversar com o Atendente Virtual, informe seu CPF (apenas números):',
+        response: 'Agora, informe seu número de telefone (com DDD):\n\nOu digite "voltar" para retornar ao menu anterior.',
         nextState: {
-          currentState: HybridChatFlowState.AWAITING_AI_CPF,
+          currentState: HybridChatFlowState.AWAITING_AI_PHONE,
           data: { ...state.data, userType: 'coordinator' },
         },
       };
@@ -362,17 +359,6 @@ O vídeo foi útil ou você precisa de mais alguma ajuda?
     };
   }
 
-  private handleAiCpfResponse(message: string, state: HybridChatState): { response: string; nextState: HybridChatState } {
-    const cpf = message.trim();
-
-    return {
-      response: 'Agora, informe seu número de telefone (com DDD):\n\nOu digite "voltar" para retornar ao menu anterior.',
-      nextState: {
-        currentState: HybridChatFlowState.AWAITING_AI_PHONE,
-        data: { ...state.data, userCpf: cpf },
-      },
-    };
-  }
 
   private async handleAiPhoneResponse(message: string, state: HybridChatState): Promise<{ response: string; nextState: HybridChatState }> {
     const phone = message.trim();
