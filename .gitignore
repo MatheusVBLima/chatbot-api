@@ -55,4 +55,17 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
+# Documentation files (ignore from git)
+todo.md
+relatorio.md
+Retornos-Staging.md
+guide.md
+deploy.md
+ZAPI-SETUP.md
+TESTE-VALIDACAO-API.md
+README-DOCKER.md
+test.md
 
+# Test files (ignore from git)
+test-*.ts
+test-*.js

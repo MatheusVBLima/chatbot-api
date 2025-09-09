@@ -4,5 +4,5 @@ export interface ChatMessage {
   message: string;
   response: string;
   timestamp: Date;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
 } 

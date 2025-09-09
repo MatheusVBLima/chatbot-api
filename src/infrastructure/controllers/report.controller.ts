@@ -1,4 +1,5 @@
 import { Controller, Get, Param, NotFoundException, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { ReportService } from '../../application/services/report.service';
 import { CacheService } from '../../application/services/cache.service';
@@ -9,6 +10,7 @@ export class ReportController {
   constructor(
     private readonly reportService: ReportService,
     private readonly cacheService: CacheService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get('from-cache/:cacheId/:format')
@@ -17,6 +19,15 @@ export class ReportController {
     @Param('format') format: 'txt' | 'csv' | 'pdf',
     @Res() res: Response,
   ) {
+    const reportsEnabled = this.configService.get('REPORTS_ENABLED', 'true') === 'true';
+
+    if (!reportsEnabled) {
+      return res.status(503).json({
+        message: 'O serviço de relatórios está temporariamente em manutenção. Tente novamente mais tarde.',
+        status: 'maintenance'
+      });
+    }
+
     const cachedData = this.cacheService.get(cacheId);
 
     if (!cachedData) {

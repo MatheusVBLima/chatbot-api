@@ -14,7 +14,7 @@ export class OpenChatRequestDto implements ProcessOpenChatMessageRequest {
   userId?: string;
   phone?: string;
   email?: string;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
 }
 
 // DTO for closed chat
@@ -23,7 +23,7 @@ export class ClosedChatRequestDto implements ProcessClosedChatMessageRequest {
   userId?: string;
   phone?: string;
   email?: string;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
   currentState?: any;
 }
 

@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import { tool } from 'ai';
+import { ConfigService } from '@nestjs/config';
 
 const cpfSchema = z.object({ 
   cpf: z.string().describe('O CPF do usuário a ser consultado. Deve conter 11 dígitos.') 
 });
 
-export const virtualAssistanceTools = {
+export const getVirtualAssistanceTools = (configService: ConfigService) => {
+  const reportsEnabled = configService.get('REPORTS_ENABLED', 'true') === 'true';
+
+  const tools = {
   // --- Coordinator Tools ---
   getCoordinatorsOngoingActivities: tool({
     description: "Obtém a lista de TODAS as atividades em andamento. Requer o CPF do coordenador logado.",
@@ -53,13 +57,19 @@ export const virtualAssistanceTools = {
     }),
   }),
 
-  // --- Generic Report Tool ---
-  generateReport: tool({
-    description: 'OBRIGATÓRIO: Use esta ferramenta sempre que o usuário pedir para gerar relatório, exportar dados, baixar arquivos ou criar documentos. Funciona com qualquer resultado de busca anterior. Palavras-chave: "relatório", "exportar", "baixar", "PDF", "CSV", "TXT", "gerar", "arquivo".',
-    parameters: z.object({
-      format: z.enum(['pdf', 'csv', 'txt']).describe('O formato do arquivo solicitado pelo usuário (pdf, csv, ou txt).'),
-      cpf: z.string().describe('O CPF do usuário logado.'),
-      fieldsRequested: z.string().optional().describe('Campos específicos solicitados pelo usuário (ex: "nome e email", "apenas telefone", "nome, email e telefone"). Se não especificado, inclui todos os dados.'),
-    }),
-  }),
+  };
+
+  // Conditionally add generateReport tool only if enabled
+  if (reportsEnabled) {
+    (tools as any).generateReport = tool({
+      description: 'OBRIGATÓRIO: Use esta ferramenta sempre que o usuário pedir para gerar relatório, exportar dados, baixar arquivos ou criar documentos. Funciona com qualquer resultado de busca anterior. Palavras-chave: "relatório", "exportar", "baixar", "PDF", "CSV", "TXT", "gerar", "arquivo".',
+      parameters: z.object({
+        format: z.enum(['pdf', 'csv', 'txt']).describe('O formato do arquivo solicitado pelo usuário (pdf, csv, ou txt).'),
+        cpf: z.string().describe('O CPF do usuário logado.'),
+        fieldsRequested: z.string().optional().describe('Campos específicos solicitados pelo usuário (ex: "nome e email", "apenas telefone", "nome, email e telefone"). Se não especificado, inclui todos os dados.'),
+      }),
+    });
+  }
+
+  return tools;
 }; 

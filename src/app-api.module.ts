@@ -14,6 +14,7 @@ import { GeminiAIService } from './infrastructure/services/gemini-ai.service';
 import { PromptService } from './infrastructure/services/prompt.service';
 import { ApiClientService } from './infrastructure/services/api-client.service';
 import { ApiVirtualAssistanceService } from './infrastructure/services/api-virtual-assistance.service';
+import { RadeAuthService } from './infrastructure/services/rade-auth.service';
 import { CacheService } from './application/services/cache.service';
 
 const USER_REPOSITORY = 'UserRepository';
@@ -37,6 +38,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     ReportService,
     CacheService,
     PromptService,
+    RadeAuthService,
     ApiClientService,
     ApiVirtualAssistanceService,
     ApiUserRepository,

@@ -8,7 +8,7 @@ export interface ProcessClosedChatMessageRequest {
   userId?: string;
   phone?: string;
   email?: string;
-  channel: 'web' | 'whatsapp' | 'telegram';
+  channel: string;
   state?: ClosedChatState; 
 }
 

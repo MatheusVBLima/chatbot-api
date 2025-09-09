@@ -29,7 +29,11 @@
       "Bash(timeout 60 npx ts-node test-clean-session.ts)",
       "Bash(timeout 60 npx ts-node test-random-session.ts)",
       "Bash(timeout 60 npx ts-node test-simple-direct.ts)",
-      "Bash(timeout 30 npx ts-node test-simple-direct.ts)"
+      "Bash(timeout 30 npx ts-node test-simple-direct.ts)",
+      "WebSearch",
+      "Bash(git checkout:*)",
+      "Bash(chmod:*)",
+      "Bash(timeout 300 npx ts-node test-report-validation.ts)"
     ],
     "deny": []
   }

@@ -18,6 +18,9 @@ import { MockVirtualAssistanceService } from './infrastructure/services/mock-vir
 import { ApiClientService } from './infrastructure/services/api-client.service';
 import { ApiVirtualAssistanceService } from './infrastructure/services/api-virtual-assistance.service';
 import { CacheService } from './application/services/cache.service';
+import { HealthModule } from './health/health.module';
+import { ZapiModule } from './infrastructure/modules/zapi.module';
+import { RadeAuthService } from './infrastructure/services/rade-auth.service';
 
 const USER_REPOSITORY = 'UserRepository';
 const AI_SERVICE = 'AIService';
@@ -29,6 +32,8 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
       isGlobal: true,
       envFilePath: '.env',
     }),
+    HealthModule,
+    ZapiModule,
   ],
   controllers: [AppController, ChatController, ReportController, MockOnlyChatController],
   providers: [
@@ -40,6 +45,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     ReportService,
     CacheService,
     PromptService,
+    RadeAuthService,
     ApiClientService,
     ApiVirtualAssistanceService,
     ApiUserRepository,
