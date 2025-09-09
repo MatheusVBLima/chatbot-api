@@ -65,7 +65,12 @@ ZAPI-SETUP.md
 TESTE-VALIDACAO-API.md
 README-DOCKER.md
 test.md
+CLAUDE.md
+DEPLOYMENT_GUIDE.md
+*.md
+!README.md
 
 # Test files (ignore from git)
 test-*.ts
 test-*.js
+test-hybrid-staging.ts

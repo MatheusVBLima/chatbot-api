@@ -26,6 +26,7 @@ export class ClosedChatRequestDto implements ProcessClosedChatMessageRequest {
   phone?: string;
   email?: string;
   channel: string;
+  state?: ClosedChatState;
 }
 
 // DTO for API chat
