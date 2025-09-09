@@ -12,7 +12,22 @@ async function bootstrap() {
   
   const app = await NestFactory.create(moduleToUse);
 
-  app.enableCors();
+  // Configure CORS to allow front-end access
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',')
+    : [
+        'http://localhost:3000', // Next.js dev server
+        'http://localhost:3001', // API localhost
+        /^https:\/\/.*\.vercel\.app$/, // All Vercel deployments
+        /^https:\/\/.*\.render\.com$/, // Render deployments
+      ];
+
+  app.enableCors({
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
 
   const port = process.env.PORT || 3001;
   await app.listen(port, '0.0.0.0');
