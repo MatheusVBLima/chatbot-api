@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class CacheService {
   private readonly cache = new Map<string, any>();
+  private readonly MAX_CACHE_SIZE = 1000; // Limite máximo de entradas no cache
 
   /**
    * Stores a value in the cache with a Time-To-Live (TTL).
@@ -15,6 +16,14 @@ export class CacheService {
     if (this.cache.has(key)) {
         const oldTimeout = this.cache.get(key).timeout;
         clearTimeout(oldTimeout);
+    }
+
+    // If cache is at max size and this is a new key, remove oldest entry (LRU)
+    if (this.cache.size >= this.MAX_CACHE_SIZE && !this.cache.has(key)) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) {
+        this.delete(firstKey);
+      }
     }
 
     const timeout = setTimeout(() => this.cache.delete(key), ttl);

@@ -5,7 +5,17 @@ import { User } from '../../domain/entities/user.entity';
 
 @Injectable()
 export class PromptService {
-  private readonly promptsPath = join(process.cwd(), 'src', 'infrastructure', 'prompts');
+  private readonly promptsPath = this.getPromptsPath();
+
+  private getPromptsPath(): string {
+    // In production, files are in dist folder, in development they're in src
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+      return join(process.cwd(), 'dist', 'infrastructure', 'prompts');
+    } else {
+      return join(process.cwd(), 'src', 'infrastructure', 'prompts');
+    }
+  }
 
   getSystemPrompt(actor: User): string {
     const isCoordinator = actor.role === 'coordinator';
