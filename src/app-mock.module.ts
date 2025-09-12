@@ -14,6 +14,8 @@ import { GeminiAIService } from './infrastructure/services/gemini-ai.service';
 import { PromptService } from './infrastructure/services/prompt.service';
 import { MockVirtualAssistanceService } from './infrastructure/services/mock-virtual-assistance.service';
 import { CacheService } from './application/services/cache.service';
+import { MetricsService } from './application/services/metrics.service';
+import { MetricsController } from './infrastructure/controllers/metrics.controller';
 
 const USER_REPOSITORY = 'UserRepository';
 const AI_SERVICE = 'AIService';
@@ -26,7 +28,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
       envFilePath: '.env',
     }),
   ],
-  controllers: [AppController, MockChatController, ReportController],
+  controllers: [AppController, MockChatController, ReportController, MetricsController],
   providers: [
     AppService,
     ProcessOpenChatMessageUseCase,
@@ -35,6 +37,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     ClosedChatFlow,
     ReportService,
     CacheService,
+    MetricsService,
     PromptService,
     MockVirtualAssistanceService,
     MockUserRepository,

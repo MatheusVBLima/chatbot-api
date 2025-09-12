@@ -9,6 +9,7 @@ import { VirtualAssistanceService } from '../../domain/services/virtual-assistan
 import { randomUUID } from 'crypto';
 import { CacheService } from '../../application/services/cache.service';
 import { PromptService } from './prompt.service';
+import { MetricsService, ChatMetric } from '../../application/services/metrics.service';
 
 @Injectable()
 export class GeminiAIService implements AIService {
@@ -20,9 +21,10 @@ export class GeminiAIService implements AIService {
     @Inject('VirtualAssistanceService') private readonly virtualAssistanceService: VirtualAssistanceService,
     private readonly cacheService: CacheService,
     private readonly promptService: PromptService,
+    private readonly metricsService: MetricsService,
     ) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = this.configService.get<string>('GOOGLE_GENERATIVE_AI_API_KEY');
-    this.model = google('gemini-1.5-flash-latest');
+    this.model = google('gemini-2.0-flash-lite');
     const configuredBaseUrl = this.configService.get<string>('API_BASE_URL');
     const renderExternalUrl = process.env.RENDER_EXTERNAL_URL;
     this.apiBaseUrl = configuredBaseUrl || renderExternalUrl || 'http://localhost:3001';
@@ -34,7 +36,9 @@ export class GeminiAIService implements AIService {
   }
   
   async processToolCall(actor: User, userMessage: string, availableTools: Record<string, CoreTool>): Promise<string> {
+    const startTime = Date.now();
     console.log('[DEBUG] processToolCall called with:', actor.cpf, userMessage);
+    
     // Buscar histórico de conversa do cache
     const conversationKey = `conversation_${actor.cpf}`;
     const existingMessages: CoreMessage[] = this.cacheService.get(conversationKey) || [];
@@ -42,12 +46,17 @@ export class GeminiAIService implements AIService {
     // Adicionar nova mensagem do usuário
     const messages: CoreMessage[] = [...existingMessages, { role: 'user', content: userMessage }];
     
-    // Limitar histórico para evitar contexto muito grande (últimas 10 mensagens)
-    const trimmedMessages = messages.slice(-10);
+    // Limitar histórico para evitar contexto muito grande (últimas 3 mensagens)
+    const trimmedMessages = messages.slice(-3);
 
-    // Debug: Log available tools
-    console.log('[AI] Available tools:', Object.keys(availableTools));
-    console.log('[AI] System prompt preview:', this.promptService.getSystemPrompt(actor).substring(0, 200) + '...');
+    // Métricas de tokens
+    const systemPrompt = this.promptService.getSystemPrompt(actor);
+    const estimatedInputTokens = this.estimateTokens(systemPrompt) + 
+      trimmedMessages.reduce((acc, msg) => acc + this.estimateTokens(JSON.stringify(msg.content)), 0);
+    
+    console.log('[METRICS] Estimated input tokens:', estimatedInputTokens);
+    console.log('[METRICS] Available tools:', Object.keys(availableTools).length);
+    console.log('[METRICS] Message history length:', trimmedMessages.length);
     
     const result = await streamText({
       model: this.model,
@@ -100,28 +109,31 @@ export class GeminiAIService implements AIService {
 
       trimmedMessages.push({ role: 'tool', content: toolResults });
 
-      // We send the full conversation history back to the AI, including the tool results
-      let finalResponseText = '';
-      try {
-        const finalResult = await streamText({
-          model: this.model,
-          system: this.promptService.getSystemPrompt(actor),
-          messages: trimmedMessages,
-        });
-        for await (const part of finalResult.fullStream) {
-          if (part.type === 'text-delta') {
-            finalResponseText += part.textDelta;
-          } else if (part.type === 'error') {
-            console.error('Final stream error:', part.error);
+      // Primeiro tentar usar fallback inteligente, se não funcionar, fazer segunda chamada
+      let finalResponseText = this.buildFallbackResponseFromToolResults(toolResults, userMessage);
+      
+      // Se o fallback não conseguiu gerar uma resposta adequada, aí sim fazer segunda chamada
+      if (!finalResponseText || finalResponseText.includes('não recebi um texto final da IA') || finalResponseText.length < 10) {
+        console.log('[AI] Fallback insufficient, making second AI call');
+        try {
+          const finalResult = await streamText({
+            model: this.model,
+            system: this.promptService.getSystemPrompt(actor),
+            messages: trimmedMessages,
+          });
+          for await (const part of finalResult.fullStream) {
+            if (part.type === 'text-delta') {
+              finalResponseText += part.textDelta;
+            } else if (part.type === 'error') {
+              console.error('Final stream error:', part.error);
+            }
           }
+        } catch (err) {
+          console.error('[AI] Error generating final response after tool results:', err);
+          // Manter fallback como resposta se segunda chamada falhar
         }
-      } catch (err) {
-        console.error('[AI] Error generating final response after tool results:', err);
-      }
-      // Fallback: if the model didn't produce any text, synthesize a concise human response from the tool results
-      if (!finalResponseText || finalResponseText.trim().length === 0) {
-        console.warn('[AI] Empty final response text after tool calls. Building fallback response.');
-        finalResponseText = this.buildFallbackResponseFromToolResults(toolResults);
+      } else {
+        console.log('[AI] Using intelligent fallback, skipping second AI call');
       }
 
       // Salvar conversa completa no cache (com ferramentas)
@@ -130,6 +142,28 @@ export class GeminiAIService implements AIService {
         { role: 'assistant', content: finalResponseText }
       ];
       this.cacheService.set(conversationKey, updatedMessages, 3600000); // Cache por 1 hora (sessão)
+      
+      // Métricas finais (com tools)
+      const endTime = Date.now();
+      const responseTime = endTime - startTime;
+      const estimatedOutputTokens = this.estimateTokens(finalResponseText);
+      const totalTokens = estimatedInputTokens + estimatedOutputTokens;
+      const estimatedCost = (estimatedInputTokens * 0.075 + estimatedOutputTokens * 0.30) / 1000000;
+      const toolCallsCount = toolCalls.length;
+      const cacheHitsCount = toolResults.filter(tr => {
+        // Verificar se usou cache checando se o log foi impresso
+        return tr.result && typeof tr.result === 'object';
+      }).length;
+      
+      console.log('[METRICS] Response time:', responseTime, 'ms');
+      console.log('[METRICS] Tool calls made:', toolCallsCount);
+      console.log('[METRICS] Cache hits:', cacheHitsCount);
+      console.log('[METRICS] Estimated output tokens:', estimatedOutputTokens);
+      console.log('[METRICS] Total estimated tokens:', totalTokens);
+      console.log('[METRICS] Estimated cost: $', estimatedCost.toFixed(6));
+      
+      // Gravar métrica
+      this.recordMetric(actor, userMessage, responseTime, estimatedInputTokens, estimatedOutputTokens, totalTokens, estimatedCost, toolCalls.map(tc => tc.toolName), cacheHitsCount, false);
       
       return finalResponseText;
     }
@@ -141,64 +175,88 @@ export class GeminiAIService implements AIService {
     ];
     this.cacheService.set(conversationKey, updatedMessages, 3600000); // Cache por 1 hora (sessão)
     
+    // Métricas finais (sem tools)
+    const endTime = Date.now();
+    const responseTime = endTime - startTime;
+    const estimatedOutputTokens = this.estimateTokens(textContent);
+    const totalTokens = estimatedInputTokens + estimatedOutputTokens;
+    const estimatedCost = (estimatedInputTokens * 0.075 + estimatedOutputTokens * 0.30) / 1000000;
+    
+    console.log('[METRICS] Response time:', responseTime, 'ms');
+    console.log('[METRICS] Estimated output tokens:', estimatedOutputTokens);
+    console.log('[METRICS] Total estimated tokens:', totalTokens);
+    console.log('[METRICS] Estimated cost: $', estimatedCost.toFixed(6));
+    
+    // Gravar métrica (sem tools)
+    this.recordMetric(actor, userMessage, responseTime, estimatedInputTokens, estimatedOutputTokens, totalTokens, estimatedCost, [], 0, false);
+    
     return textContent;
   }
 
+  // Estimativa simples de tokens (aprox. 4 caracteres = 1 token)
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  // Gravar métrica da interação
+  private recordMetric(
+    actor: User, 
+    message: string, 
+    responseTime: number, 
+    inputTokens: number, 
+    outputTokens: number, 
+    totalTokens: number, 
+    cost: number, 
+    toolsUsed: string[], 
+    cacheHits: number, 
+    fallbackUsed: boolean
+  ): void {
+    const metric: ChatMetric = {
+      timestamp: Date.now(),
+      userId: actor.cpf,
+      userType: actor.role,
+      message: message.substring(0, 100), // Limitar tamanho para logs
+      responseTime,
+      estimatedInputTokens: inputTokens,
+      estimatedOutputTokens: outputTokens,
+      totalTokens,
+      estimatedCost: cost,
+      toolsUsed,
+      cacheHits,
+      fallbackUsed
+    };
+    
+    this.metricsService.recordChatMetric(metric);
+  }
+
   // Build a concise human-friendly response from tool results when the model doesn't emit text
-  private buildFallbackResponseFromToolResults(toolResults: Array<{ toolName: string; result: any }>): string {
+  // Agora o fallback é mais simples - deixa a IA fazer o trabalho de formatação na segunda chamada
+  private buildFallbackResponseFromToolResults(toolResults: Array<{ toolName: string; result: any }>, userMessage: string): string {
     try {
-      const lines: string[] = [];
-      for (const tr of toolResults) {
-        const name = tr.toolName;
-        const result = tr.result;
-        if (name === 'generateReport') {
-          if (result && typeof result === 'object' && result.downloadUrl) {
-            lines.push(`Relatório gerado. Link para download: ${result.downloadUrl}`);
-          } else if (result && result.error) {
-            lines.push(`Não foi possível gerar o relatório: ${result.error}`);
+      // Para casos simples onde conseguimos responder diretamente
+      if (toolResults.length === 1) {
+        const tr = toolResults[0];
+        
+        // Relatório gerado
+        if (tr.toolName === 'generateReport') {
+          if (tr.result && tr.result.downloadUrl) {
+            return `✅ Relatório gerado! Link: ${tr.result.downloadUrl}`;
+          } else if (tr.result && tr.result.error) {
+            return `❌ Erro ao gerar relatório: ${tr.result.error}`;
           }
-          continue;
         }
-
-        if (name === 'findPersonByName') {
-          if (result && typeof result === 'object' && result.name) {
-            lines.push(`Pessoa encontrada: ${result.name}`);
-          } else if (result && result.error) {
-            lines.push(`${result.error}`);
-          }
-          continue;
-        }
-
-        // Data-fetching tools
-        if (Array.isArray(result)) {
-          const count = result.length;
-          const preview = this.previewArray(result);
-          const label = this.labelForTool(name, count);
-          lines.push(`${label}: ${count} encontrado(s).${preview ? `\n${preview}` : ''}`);
-          continue;
-        }
-
-        if (result && typeof result === 'object') {
-          const formatted = this.previewObject(result);
-          const label = this.labelForTool(name, 1);
-          lines.push(`${label}:\n${formatted}`);
-          continue;
-        }
-
-        // Primitive or unknown
-        if (result != null) {
-          lines.push(String(result));
+        
+        // Pessoa não encontrada
+        if (tr.toolName === 'findPersonByName' && tr.result && tr.result.error) {
+          return tr.result.error;
         }
       }
-
-      if (lines.length === 0) {
-        return 'Consegui obter os dados solicitados, mas não recebi um texto final da IA. Você pode pedir para eu gerar um relatório em PDF/CSV/TXT ou fazer outra pergunta.';
-      }
-
-      return lines.join('\n\n');
+      
+      // Para outros casos, forçar segunda chamada da IA que agora tem instruções melhores
+      return '';
     } catch (err) {
       console.error('[AI] Error building fallback response:', err);
-      return 'Consegui executar as ferramentas, mas não recebi um texto final da IA. Tente repetir a pergunta ou pedir um relatório.';
+      return 'Dados obtidos com sucesso! Tente fazer uma pergunta específica ou solicitar um relatório.';
     }
   }
 
@@ -315,56 +373,138 @@ export class GeminiAIService implements AIService {
 
 
 
+  // Gerar chave específica do cache para cada tipo de tool
+  private getToolCacheKey(toolName: string, cpf: string): string {
+    return `tool_${toolName}_${cpf}`;
+  }
+
   // This method maps the AI's tool choice to our actual service methods.
   private async executeTool(toolCall: any): Promise<any> {
     const { toolName, args } = toolCall;
+    
+    // Cache inteligente: verificar se já temos os dados deste tool
+    const toolCacheKey = this.getToolCacheKey(toolName, args.cpf);
+    const cachedResult = this.cacheService.get(toolCacheKey);
+    
+    if (cachedResult) {
+      console.log(`[CACHE] Using cached result for ${toolName}`);
+      // Atualizar lastResult para permitir geração de relatórios
+      this.cacheService.set(this.getLastResultCacheKey(args.cpf), cachedResult, 3600000);
+      return cachedResult;
+    }
+    
     let result: any; // To store the result of the data-fetching tools
     
     switch (toolName) {
       case 'getCoordinatorsOngoingActivities':
         result = await this.virtualAssistanceService.getCoordinatorsOngoingActivities(args.cpf);
-        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
+        this.cacheService.set(toolCacheKey, result, 3600000); // Cache específico do tool
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache do último resultado
         return result;
       case 'getCoordinatorsProfessionals':
         result = await this.virtualAssistanceService.getCoordinatorsProfessionals(args.cpf);
+        this.cacheService.set(toolCacheKey, result, 3600000);
         this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
       case 'getCoordinatorsStudents':
         result = await this.virtualAssistanceService.getCoordinatorsStudents(args.cpf);
+        this.cacheService.set(toolCacheKey, result, 3600000);
         this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
-        return result;
-      case 'getCoordinatorDetails':
-        result = await this.virtualAssistanceService.getCoordinatorDetails(args.cpf);
-        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
         return result;
       case 'getStudentsScheduledActivities':
         result = await this.virtualAssistanceService.getStudentsScheduledActivities(args.cpf);
-        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
+        this.cacheService.set(toolCacheKey, result, 3600000);
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
       case 'getStudentsProfessionals':
         result = await this.virtualAssistanceService.getStudentsProfessionals(args.cpf);
+        this.cacheService.set(toolCacheKey, result, 3600000);
         this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
         
       case 'getStudentInfo':
         result = await this.virtualAssistanceService.getStudentInfo(args.cpf);
+        this.cacheService.set(toolCacheKey, result, 3600000);
         this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
       case 'getCoordinatorInfo':
         result = await this.virtualAssistanceService.getCoordinatorInfo(args.cpf);
-        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000); // Cache por 1 hora (sessão)
+        this.cacheService.set(toolCacheKey, result, 3600000);
+        this.cacheService.set(this.getLastResultCacheKey(args.cpf), result, 3600000);
         return result;
       
       case 'findPersonByName':
         const { name: searchName, cpf: searcherCpf } = args;
         let foundPerson: any = null;
         
+        // Função para normalizar texto (remover acentos e converter para lowercase)
+        const normalizeText = (text: string): string => {
+          return text
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+        };
+        
+        // Função para calcular distância de edição (Levenshtein distance)
+        const editDistance = (a: string, b: string): number => {
+          const matrix: number[][] = [];
+          for (let i = 0; i <= b.length; i++) {
+            matrix[i] = [i];
+          }
+          for (let j = 0; j <= a.length; j++) {
+            matrix[0][j] = j;
+          }
+          for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+              if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+              } else {
+                matrix[i][j] = Math.min(
+                  matrix[i - 1][j - 1] + 1,
+                  matrix[i][j - 1] + 1,
+                  matrix[i - 1][j] + 1
+                );
+              }
+            }
+          }
+          return matrix[b.length][a.length];
+        };
+        
         // Buscar em profissionais primeiro (mais comum)
         try {
           const professionals = await this.virtualAssistanceService.getStudentsProfessionals(searcherCpf);
-          foundPerson = professionals.find(person => 
-            person.name.toLowerCase().includes(searchName.toLowerCase())
-          );
+          
+          // Primeiro tentar busca exata (includes)
+          foundPerson = professionals.find(person => {
+            const normalizedPersonName = normalizeText(person.name);
+            const normalizedSearchName = normalizeText(searchName);
+            return normalizedPersonName.includes(normalizedSearchName);
+          });
+          
+          // Se não encontrou, tentar busca por palavras individuais com tolerância a erros
+          if (!foundPerson) {
+            const searchWords = normalizeText(searchName).split(' ').filter(w => w.length >= 3);
+            
+            foundPerson = professionals.find(person => {
+              const personWords = normalizeText(person.name).split(' ');
+              
+              return searchWords.some(searchWord => {
+                return personWords.some(personWord => {
+                  // Busca exata primeiro
+                  if (personWord.includes(searchWord)) return true;
+                  
+                  // Se palavra tem pelo menos 4 caracteres, permitir 1-2 erros
+                  if (searchWord.length >= 4) {
+                    const distance = editDistance(searchWord, personWord);
+                    const maxErrors = searchWord.length <= 5 ? 1 : 2;
+                    return distance <= maxErrors;
+                  }
+                  
+                  return false;
+                });
+              });
+            });
+          }
         } catch (error) {
           console.log('Erro ao buscar em profissionais:', error);
         }

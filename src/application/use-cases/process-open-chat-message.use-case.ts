@@ -88,7 +88,6 @@ export class ProcessOpenChatMessageUseCase {
       getCoordinatorsOngoingActivities: tools.getCoordinatorsOngoingActivities,
       getCoordinatorsProfessionals: tools.getCoordinatorsProfessionals,
       getCoordinatorsStudents: tools.getCoordinatorsStudents,
-      getCoordinatorDetails: tools.getCoordinatorDetails,
       getCoordinatorInfo: tools.getCoordinatorInfo,
     };
 

@@ -12,48 +12,44 @@ export const getVirtualAssistanceTools = (configService: ConfigService) => {
   const tools = {
   // --- Coordinator Tools ---
   getCoordinatorsOngoingActivities: tool({
-    description: "Obtém a lista de TODAS as atividades em andamento. Requer o CPF do coordenador logado.",
+    description: "Lista atividades em andamento no momento. RETORNA: Array de {studentName, groupName, taskName, internshipLocationName, scheduledStartTo, scheduledEndTo, startedAt, preceptorName} ou [] se vazio.",
     parameters: cpfSchema,
   }),
   getCoordinatorsProfessionals: tool({
-    description: 'Lista todos os profissionais (preceptores/professores) gerenciados pelo coordenador. Requer o CPF do coordenador logado.',
+    description: 'Lista profissionais (preceptores) supervisionados pelo coordenador. RETORNA: Array de {cpf, name, email, phone, groupNames[]} ou [] se vazio.',
     parameters: cpfSchema,
   }),
   getCoordinatorsStudents: tool({
-    description: 'Lista todos os alunos gerenciados pelo coordenador. Requer o CPF do coordenador logado.',
-    parameters: cpfSchema,
-  }),
-  getCoordinatorDetails: tool({
-    description: 'Obtém os detalhes do perfil de um coordenador específico. Requer o CPF do coordenador.',
+    description: 'Lista estudantes supervisionados pelo coordenador (pode ser 100+ registros). RETORNA: Array de {cpf, name, email, phone, groupNames[]} ou [] se vazio.',
     parameters: cpfSchema,
   }),
 
   // --- Student/Professional Tools ---
   getStudentsScheduledActivities: tool({
-    description: 'Obtém as atividades futuras agendadas para um aluno/profissional específico. Requer o CPF do alvo.',
+    description: 'Lista atividades futuras agendadas do estudante. RETORNA: Array de {groupName, taskName, internshipLocationName, scheduledStartTo, scheduledEndTo, preceptorNames[]} ou [] se vazio.',
     parameters: cpfSchema,
   }),
   getStudentsProfessionals: tool({
-    description: 'Lista os profissionais (preceptores/professores) associados a um aluno específico. Requer o CPF do aluno.',
+    description: 'Lista preceptores/professores do estudante. RETORNA: Array de {cpf, name, email, phone, groupNames[]} ou [] se vazio.',
     parameters: cpfSchema,
   }),
   getStudentInfo: tool({
-    description: 'Obtém dados pessoais completos do estudante (nome, email, telefone, grupos, organizações). Use quando o usuário perguntar sobre "meus dados", "minhas informações", "meu perfil".',
+    description: 'Dados pessoais completos do estudante. RETORNA: {studentName, studentEmail, studentPhone, groupNames[], organizationsAndCourses[{organizationName, courseNames[]}]}. Use para "meus dados".',
     parameters: cpfSchema,
   }),
 
   // --- Coordinator Info Tools ---
   getCoordinatorInfo: tool({
-    description: 'Obtém dados pessoais completos do coordenador (nome, email, telefone, grupos, organizações). Use quando o usuário perguntar sobre "meus dados", "minhas informações", "meu perfil".',
+    description: 'Dados pessoais completos do coordenador. RETORNA: {coordinatorName, coordinatorEmail, coordinatorPhone, groupNames[], organizationsAndCourses[{organizationName, courseNames[]}]}. Use para "meus dados".',
     parameters: cpfSchema,
   }),
 
   // --- Search Tools ---
   findPersonByName: tool({
-    description: 'Busca uma pessoa específica por nome entre estudantes e profissionais. Use antes de gerar relatórios de terceiros.',
+    description: 'Busca pessoa por nome nos dados já carregados. RETORNA: {cpf, name, email, phone, groupNames[]} ou {error: "mensagem"} se não encontrado.',
     parameters: z.object({
-      name: z.string().describe('O nome da pessoa a ser buscada (ex: "Dra. Carla Souza", "Alice Ferreira")'),
-      cpf: z.string().describe('O CPF do usuário logado fazendo a busca.'),
+      name: z.string().describe('Nome da pessoa (ex: "João Silva", "Dra. Ana")'),
+      cpf: z.string().describe('CPF do usuário logado fazendo a busca'),
     }),
   }),
 
@@ -62,11 +58,11 @@ export const getVirtualAssistanceTools = (configService: ConfigService) => {
   // Conditionally add generateReport tool only if enabled
   if (reportsEnabled) {
     (tools as any).generateReport = tool({
-      description: 'OBRIGATÓRIO: Use esta ferramenta sempre que o usuário pedir para gerar relatório, exportar dados, baixar arquivos ou criar documentos. Funciona com qualquer resultado de busca anterior. Palavras-chave: "relatório", "exportar", "baixar", "PDF", "CSV", "TXT", "gerar", "arquivo".',
+      description: 'Gera relatório dos últimos dados consultados. OBRIGATÓRIO para "relatório", "exportar", "PDF", "CSV", "TXT". RETORNA: {downloadUrl: "link_para_download"} ou {error: "mensagem"}.',
       parameters: z.object({
-        format: z.enum(['pdf', 'csv', 'txt']).describe('O formato do arquivo solicitado pelo usuário (pdf, csv, ou txt).'),
-        cpf: z.string().describe('O CPF do usuário logado.'),
-        fieldsRequested: z.string().optional().describe('Campos específicos solicitados pelo usuário (ex: "nome e email", "apenas telefone", "nome, email e telefone"). Se não especificado, inclui todos os dados.'),
+        format: z.enum(['pdf', 'csv', 'txt']).describe('Formato: pdf, csv ou txt'),
+        cpf: z.string().describe('CPF do usuário logado'),
+        fieldsRequested: z.string().optional().describe('Campos específicos: "nome e email", "apenas telefone", etc. Opcional.'),
       }),
     });
   }
