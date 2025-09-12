@@ -8,6 +8,7 @@ import { MasterChatController } from './infrastructure/controllers/master-chat.c
 import { DebugController } from './infrastructure/controllers/debug.controller';
 import { ReportController } from './infrastructure/controllers/report.controller';
 import { MockOnlyChatController } from './infrastructure/controllers/mock-only-chat.controller';
+import { MetricsController } from './infrastructure/controllers/metrics.controller';
 import { ProcessOpenChatMessageUseCase } from './application/use-cases/process-open-chat-message.use-case';
 import { ProcessClosedChatMessageUseCase } from './application/use-cases/process-closed-chat-message.use-case';
 import { ProcessApiChatMessageUseCase } from './application/use-cases/process-api-chat-message.use-case';
@@ -22,6 +23,7 @@ import { ApiClientService } from './infrastructure/services/api-client.service';
 import { ApiVirtualAssistanceService } from './infrastructure/services/api-virtual-assistance.service';
 import { CacheService } from './application/services/cache.service';
 import { SessionCacheService } from './application/services/session-cache.service';
+import { MetricsService } from './application/services/metrics.service';
 import { HealthModule } from './health/health.module';
 import { ZapiModule } from './infrastructure/modules/zapi.module';
 import { RadeAuthService } from './infrastructure/services/rade-auth.service';
@@ -43,7 +45,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     HealthModule,
     ZapiModule,
   ],
-  controllers: [AppController, ChatController, HybridChatController, MasterChatController, DebugController, ReportController, MockOnlyChatController],
+  controllers: [AppController, ChatController, HybridChatController, MasterChatController, DebugController, ReportController, MockOnlyChatController, MetricsController],
   providers: [
     AppService,
     ProcessOpenChatMessageUseCase,
@@ -53,6 +55,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     ReportService,
     CacheService,
     SessionCacheService,
+    MetricsService,
     PromptService,
     RadeAuthService,
     ApiClientService,

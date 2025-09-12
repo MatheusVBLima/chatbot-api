@@ -17,6 +17,8 @@ import { ApiClientService } from './infrastructure/services/api-client.service';
 import { ApiVirtualAssistanceService } from './infrastructure/services/api-virtual-assistance.service';
 import { RadeAuthService } from './infrastructure/services/rade-auth.service';
 import { CacheService } from './application/services/cache.service';
+import { MetricsService } from './application/services/metrics.service';
+import { MetricsController } from './infrastructure/controllers/metrics.controller';
 
 const USER_REPOSITORY = 'UserRepository';
 const AI_SERVICE = 'AIService';
@@ -33,7 +35,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
       ],
     }),
   ],
-  controllers: [AppController, ChatController, HybridChatController, ReportController],
+  controllers: [AppController, ChatController, HybridChatController, ReportController, MetricsController],
   providers: [
     AppService,
     ProcessOpenChatMessageUseCase,
@@ -42,6 +44,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     ClosedChatFlow,
     ReportService,
     CacheService,
+    MetricsService,
     PromptService,
     RadeAuthService,
     ApiClientService,

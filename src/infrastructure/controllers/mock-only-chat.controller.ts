@@ -7,6 +7,7 @@ import { MockUserRepository } from '../repositories/mock-user.repository';
 import { GeminiAIService } from '../services/gemini-ai.service';
 import { PromptService } from '../services/prompt.service';
 import { CacheService } from '../../application/services/cache.service';
+import { MetricsService } from '../../application/services/metrics.service';
 import { ClosedChatFlow } from '../../domain/flows/closed-chat.flow';
 
 // DTOs
@@ -40,11 +41,13 @@ export class MockOnlyChatController {
     const mockUserRepo = new MockUserRepository();
     const mockClosedFlow = new ClosedChatFlow(mockUserRepo);
     const mockPromptService = new PromptService();
+    const mockMetricsService = new MetricsService(this.cacheService);
     const mockAIService = new GeminiAIService(
       { get: () => process.env.GOOGLE_GENERATIVE_AI_API_KEY } as any,
       mockVirtualService as any,
       this.cacheService,
-      mockPromptService
+      mockPromptService,
+      mockMetricsService
     );
 
     const mockConfigService = {
