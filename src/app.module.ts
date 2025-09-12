@@ -21,6 +21,7 @@ import { MockVirtualAssistanceService } from './infrastructure/services/mock-vir
 import { ApiClientService } from './infrastructure/services/api-client.service';
 import { ApiVirtualAssistanceService } from './infrastructure/services/api-virtual-assistance.service';
 import { CacheService } from './application/services/cache.service';
+import { SessionCacheService } from './application/services/session-cache.service';
 import { HealthModule } from './health/health.module';
 import { ZapiModule } from './infrastructure/modules/zapi.module';
 import { RadeAuthService } from './infrastructure/services/rade-auth.service';
@@ -51,6 +52,7 @@ const VIRTUAL_ASSISTANCE_SERVICE = 'VirtualAssistanceService';
     ClosedChatFlow,
     ReportService,
     CacheService,
+    SessionCacheService,
     PromptService,
     RadeAuthService,
     ApiClientService,

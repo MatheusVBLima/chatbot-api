@@ -22,7 +22,10 @@ export class RadeAuthService {
   async getValidToken(): Promise<string> {
     // In staging/development, use the fixed token
     if (process.env.NODE_ENV !== 'production') {
-      const stagingToken = process.env.RADE_API_TOKEN || 'JQiFrDkkM5eNKtLxwNKzZoga0xkeRDAZ';
+      const stagingToken = process.env.RADE_API_TOKEN;
+      if (!stagingToken) {
+        throw new Error('RADE_API_TOKEN environment variable is required for staging/development');
+      }
       this.logger.debug('Using staging token');
       return stagingToken;
     }

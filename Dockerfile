@@ -32,8 +32,8 @@ COPY --chown=nodejs:nodejs . .
 # Build the application
 RUN npm run build
 
-# Remove dev dependencies and source files to reduce image size
-RUN rm -rf src/ test/ *.json *.md .env* && \
+# Remove dev dependencies and source files to reduce image size (keep healthcheck.js)
+RUN rm -rf src/ test/ *.md .env* package*.json tsconfig*.json nest-cli.json && \
     npm prune --production
 
 # Switch to non-root user

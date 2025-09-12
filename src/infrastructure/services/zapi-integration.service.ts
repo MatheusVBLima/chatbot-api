@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ZapiWebhookMessage, WhatsAppUserSession, ZapiChatState } from '../../domain/types/zapi.types';
 import { ZapiService } from './zapi.service';
 import { ApiClientService } from './api-client.service';
+import { SessionCacheService } from '../../application/services/session-cache.service';
 
 // Import your existing chat flow
 // We'll use the same flow logic from test-hybrid-staging.ts
@@ -44,9 +45,15 @@ export class ZapiIntegrationService {
 
   constructor(
     private readonly zapiService: ZapiService,
+    private readonly sessionCache: SessionCacheService,
     private readonly apiClientService: ApiClientService
   ) {
     this.logger.log('Z-API Integration Service initialized');
+    
+    // Setup automatic cleanup of expired sessions every 10 minutes
+    setInterval(() => {
+      this.cleanupExpiredSessions();
+    }, 10 * 60 * 1000); // 10 minutes
   }
 
   /**
@@ -56,43 +63,60 @@ export class ZapiIntegrationService {
     const phone = webhookData.phone;
     const message = webhookData.text?.message || '';
 
-    this.logger.log(`Processing message from ${phone}: ${message}`);
+    this.logger.log(`Mensagem de ${phone}: ${message}`);
 
     try {
-      // Get or create user session
-      const session = this.getOrCreateUserSession(phone);
-      
-      // Get current chat state
-      const currentState = this.chatStates.get(phone);
-      
-      // Process message through chat flow
-      const { response, nextState } = await this.processChatFlow(message, currentState || null);
-      
-      // Update chat state
-      if (nextState) {
-        this.chatStates.set(phone, nextState);
-        session.currentState = nextState.currentState;
-        session.sessionData = nextState.data;
-        session.lastActivity = new Date();
+      // Verificar comandos especiais
+      if (this.isEndCommand(message)) {
+        await this.handleEndSession(phone);
+        return;
       }
-      
-      // Send response via Z-API
-      if (response) {
-        await this.zapiService.sendTextMessage(phone, response);
+
+      if (this.isStartCommand(message)) {
+        await this.handleStartNewSession(phone);
+        return;
       }
+
+      // Obter ou criar sessão
+      const session = this.sessionCache.getOrCreateSession(phone);
       
-      // Clean up ended sessions
-      if (nextState?.currentState === ChatFlowState.END) {
-        this.cleanupUserSession(phone);
+      // Adicionar mensagem do usuário ao histórico
+      this.sessionCache.addMessage(session.sessionId, 'user', message);
+      
+      // Processar mensagem com contexto da sessão
+      const { response, nextState } = await this.processChatFlow(
+        message, 
+        {
+          currentState: session.currentState as ChatFlowState,
+          data: session.contextData
+        }
+      );
+      
+      // Atualizar estado da sessão
+      this.sessionCache.updateSession(session.sessionId, {
+        currentState: nextState?.currentState || session.currentState,
+        contextData: nextState?.data || session.contextData
+      });
+      
+      // Adicionar resposta ao histórico
+      this.sessionCache.addMessage(session.sessionId, 'assistant', response);
+      
+      // Enviar resposta via WhatsApp
+      await this.zapiService.sendTextMessage(phone, response);
+      
+      // Se chegou ao fim do fluxo, finalizar sessão
+      if (nextState?.currentState === 'END') {
+        setTimeout(() => {
+          this.sessionCache.endSession(phone);
+        }, 5000); // Aguarda 5 segundos antes de limpar
       }
       
     } catch (error) {
-      this.logger.error(`Error processing message from ${phone}:`, error);
+      this.logger.error(`Erro processando mensagem de ${phone}:`, error);
       
-      // Send error message to user
       await this.zapiService.sendTextMessage(
         phone, 
-        'Desculpe, ocorreu um erro interno. Tente novamente em alguns minutos.'
+        '❌ Desculpe, ocorreu um erro. Digite "iniciar" para começar uma nova conversa.'
       );
     }
   }
@@ -369,6 +393,49 @@ O vídeo foi suficiente ou posso ajudar com algo mais?
         data,
       },
     };
+  }
+
+  // Adicionar métodos auxiliares
+  private isEndCommand(message: string): boolean {
+    const endCommands = ['sair', 'finalizar', 'encerrar', 'fim', 'tchau', '9'];
+    return endCommands.includes(message.toLowerCase().trim());
+  }
+
+  private isStartCommand(message: string): boolean {
+    const startCommands = ['oi', 'olá', 'início', 'iniciar', 'começar', 'start', 'menu'];
+    return startCommands.includes(message.toLowerCase().trim());
+  }
+
+  private async handleEndSession(phone: string): Promise<void> {
+    this.sessionCache.endSession(phone);
+    
+    await this.zapiService.sendTextMessage(
+      phone,
+      '👋 Atendimento finalizado com sucesso!\n\n' +
+      'Obrigado por usar nosso serviço. ' +
+      'Para iniciar uma nova conversa, envie "oi" a qualquer momento.'
+    );
+    
+    this.logger.log(`Sessão finalizada para ${phone}`);
+  }
+
+  private async handleStartNewSession(phone: string): Promise<void> {
+    // Criar nova sessão (finaliza a anterior se existir)
+    const session = this.sessionCache.createNewSession(phone);
+    
+    // Processar como início do fluxo
+    const { response, nextState } = await this.processChatFlow('', null);
+    
+    // Atualizar estado inicial
+    this.sessionCache.updateSession(session.sessionId, {
+      currentState: nextState?.currentState || 'START',
+      contextData: nextState?.data || {}
+    });
+    
+    // Enviar mensagem de boas-vindas
+    await this.zapiService.sendTextMessage(phone, response);
+    
+    this.logger.log(`Nova sessão iniciada para ${phone}: ${session.sessionId}`);
   }
 
   /**
